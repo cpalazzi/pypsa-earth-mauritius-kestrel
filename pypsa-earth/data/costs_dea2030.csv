@@ -1,0 +1,227 @@
+technology,year,parameter,value,unit,source,further description,currency_year
+solar-rooftop,2030,discount rate,0.04,per unit,standard for decentral,,
+onwind,2030,lifetime,30,years,"DEA 2030 Onshore turbines (sheet 20, col E9)",,
+offwind,2030,lifetime,30,years,DEA https://ens.dk/en/our-services/projections-and-models/technology-data,,
+solar,2030,lifetime,40,years,"DEA 2030 Utility-scale PV (sheet 22, col E9)",,
+solar-rooftop,2030,lifetime,25,years,IEA2010,,
+solar-utility,2030,lifetime,25,years,IEA2010,,
+PHS,2030,lifetime,80,years,IEA2010,,
+hydro,2030,lifetime,80,years,IEA2010,,
+ror,2030,lifetime,80,years,IEA2010,,
+OCGT,2030,lifetime,25,years,"DEA 2030 OCGT (sheet 52, col E13)",,
+nuclear,2030,lifetime,45,years,ECF2010 in DIW DataDoc http://hdl.handle.net/10419/80348,,
+CCGT,2030,lifetime,25,years,"DEA 2030 Gas turb. CC (sheet 05, col E13)",,
+CCGT H2,2030,lifetime,30,years,user,kept at 30y for H2 variant,
+coal,2030,lifetime,40,years,IEA2010,,
+lignite,2030,lifetime,40,years,IEA2010,,
+geothermal,2030,lifetime,40,years,IEA2010,,
+biomass,2030,lifetime,30,years,ECF2010 in DIW DataDoc http://hdl.handle.net/10419/80348,,
+oil,2030,lifetime,30,years,ECF2010 in DIW DataDoc http://hdl.handle.net/10419/80348,,
+onwind,2030,investment,930,EUR/kWel,DEA 2030 Onshore turbines — equipment + installation (excl land/decomm),YAML archive value; raw DEA total 1147 incl land,2020
+offwind,2030,investment,1777.76,EUR/kWel,DEA https://ens.dk/en/our-services/projections-and-models/technology-data [HICP 2013→2020],,2020
+offwind-ac-station,2030,investment,271.0,EUR/kWel,DEA https://ens.dk/en/our-services/projections-and-models/technology-data [HICP 2013→2020],,2020
+offwind-ac-connection-submarine,2030,investment,2910.54,EUR/MW/km,DEA https://ens.dk/en/our-services/projections-and-models/technology-data [HICP 2013→2020],,2020
+offwind-ac-connection-underground,2030,investment,1454.728,EUR/MW/km,DEA https://ens.dk/en/our-services/projections-and-models/technology-data [HICP 2013→2020],,2020
+offwind-dc-station,2030,investment,433.6,EUR/kWel,Haertel 2017 [HICP 2013→2020], assuming one onshore and one offshore node + 13% learning reduction,2020
+offwind-dc-connection-submarine,2030,investment,2168.0,EUR/MW/km,DTU report based on Fig 34 of https://ec.europa.eu/energy/sites/ener/files/documents/2014_nsog_report.pdf [HICP 2013→2020],,2020
+offwind-dc-connection-underground,2030,investment,1084.0,EUR/MW/km,Haertel 2017 [HICP 2013→2020], average + 13% learning reduction,2020
+solar,2030,investment,380,EUR/kWel,"DEA 2030 Utility-scale PV (sheet 22, col E16)",,2020
+biomass,2030,investment,2394.556,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+geothermal,2030,investment,3676.928,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+coal,2030,investment,1409.2,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 PC (Advanced/SuperC) [HICP 2013→2020],,2020
+lignite,2030,investment,1626.0,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+solar-rooftop,2030,investment,785.9,EUR/kWel,ETIP PV [HICP 2013→2020],,2020
+solar-utility,2030,investment,460.7,EUR/kWel,ETIP PV [HICP 2013→2020],,2020
+PHS,2030,investment,2168.0,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+hydro,2030,investment,2168.0,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+ror,2030,investment,3252.0,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+OCGT,2030,investment,468,EUR/kWel,"DEA 2030 OCGT (sheet 52, col E28, 0.468 MEUR/MW)",,2020
+nuclear,2030,investment,6504.0,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+CCGT,2030,investment,883,EUR/kWel,"DEA 2030 Gas turb. CC (sheet 05, col E28, 0.883 MEUR/MW)",,2020
+CCGT H2,2030,investment,883,EUR/kWel,aligned with CCGT DEA 2030,,2020
+oil,2030,investment,433.6,EUR/kWel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+onwind,2030,FOM,2.0,%/year,"DEA 2030 (16663/930000 ≈ 1.79%, rounded up)",,2020
+offwind,2030,FOM,2.304878,%/year,DEA https://ens.dk/en/our-services/projections-and-models/technology-data,,2013
+solar,2030,FOM,2.5,%/year,DEA 2030 (9500 EUR/MW/y ÷ 380 EUR/kW),,2020
+solar-rooftop,2030,FOM,2,%/year,ETIP PV,,2013
+solar-utility,2030,FOM,3,%/year,ETIP PV,,2013
+biomass,2030,FOM,4.526935,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+geothermal,2030,FOM,2.358491,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+coal,2030,FOM,1.923076,%/year,DIW DataDoc http://hdl.handle.net/10419/80348 PC (Advanced/SuperC),,2013
+lignite,2030,FOM,2,%/year,DIW DataDoc http://hdl.handle.net/10419/80348 PC (Advanced/SuperC),,2013
+oil,2030,FOM,1.5,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+PHS,2030,FOM,1,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+hydro,2030,FOM,1,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+ror,2030,FOM,2,%/year,DIW DataDoc http://hdl.handle.net/10419/80348,,2013
+CCGT,2030,FOM,3.35,%/year,DEA 2030 (29562/882600 = 3.35%),,2020
+CCGT H2,2030,FOM,3.35,%/year,aligned with CCGT DEA 2030,,2020
+OCGT,2030,FOM,1.76,%/year,DEA 2030 (8236/467900 = 1.76%),,2020
+onwind,2030,VOM,1.98,EUR/MWhel,"DEA 2030 Onshore turbines (sheet 20, col E23)",,2020
+offwind,2030,VOM,2.9268,EUR/MWhel,DEA https://ens.dk/en/our-services/projections-and-models/technology-data [HICP 2013→2020],,2020
+solar,2030,VOM,0.01,EUR/MWhel,placeholder to fix curtailment order,,2020
+coal,2030,VOM,6.504,EUR/MWhel,DIW DataDoc http://hdl.handle.net/10419/80348 PC (Advanced/SuperC) [HICP 2013→2020],,2020
+lignite,2030,VOM,7.588,EUR/MWhel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+CCGT,2030,VOM,4.47,EUR/MWhel,"DEA 2030 (sheet 05, col E31)",,2020
+CCGT H2,2030,VOM,4.47,EUR/MWhel,aligned with CCGT DEA 2030,,2020
+OCGT,2030,VOM,4.79,EUR/MWhel,"DEA 2030 (sheet 52, col E31)",,2020
+nuclear,2030,VOM,8.672,EUR/MWhel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+gas,2030,fuel,40.0,EUR/MWhth,"TTF 5yr avg 2021-25 excl. 2022 crisis (~35) rounded up to 40 (2020 EUR, HICP-deflated)",,2020
+uranium,2030,fuel,3.252,EUR/MWhth,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+oil,2030,VOM,3.252,EUR/MWhel,DIW DataDoc http://hdl.handle.net/10419/80348 [HICP 2013→2020],,2020
+nuclear,2030,fuel,3.252,EUR/MWhth,IEA2011b [HICP 2013→2020],,2020
+biomass,2030,fuel,25.0,EUR/MWhth,"EU mixed feedstock avg (chips/pellets/residues) 2021-25, ~25 EUR/MWhth (2020 EUR)",,2020
+coal,2030,fuel,15.0,EUR/MWhth,"API2 5yr avg 2021-25 excl. 2022 crisis ~$130/t ≈ 17 EUR/MWhth nom → 15 (2020 EUR, HICP-deflated)",,2020
+lignite,2030,fuel,6.0,EUR/MWhth,"EU domestic extraction; rising env/reclamation costs; mine-mouth (no shipping) but nearly 2× old IEA (2020 EUR)",,2020
+oil,2030,fuel,54.2,EUR/MWhth,IEA WEM2017 97USD/boe = http://www.iea.org/media/weowebsite/2017/WEM_Documentation_WEO2017.pdf [HICP 2013→2020],,2020
+PHS,2030,efficiency,0.75,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+hydro,2030,efficiency,0.9,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+ror,2030,efficiency,0.9,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+OCGT,2030,efficiency,0.41,per unit,"DEA 2030 electrical eff net annual avg (sheet 52, col E7)",,
+CCGT,2030,efficiency,0.58,per unit,"DEA 2030 electrical eff net annual avg (sheet 05, col E8)",,
+CCGT H2,2030,efficiency,0.58,per unit,aligned with CCGT DEA 2030,,
+biomass,2030,efficiency,0.468,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+geothermal,2030,efficiency,0.239,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+nuclear,2030,efficiency,0.337,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+gas,2030,CO2 intensity,0.187,tCO2/MWth,https://www.eia.gov/environment/emissions/co2_vol_mass.php,,
+coal,2030,efficiency,0.464,per unit,DIW DataDoc http://hdl.handle.net/10419/80348 PC (Advanced/SuperC),,
+lignite,2030,efficiency,0.447,per unit,DIW DataDoc http://hdl.handle.net/10419/80348,,
+oil,2030,efficiency,0.393,per unit,DIW DataDoc http://hdl.handle.net/10419/80348 CT,,
+coal,2030,CO2 intensity,0.354,tCO2/MWth,https://www.eia.gov/environment/emissions/co2_vol_mass.php,,
+lignite,2030,CO2 intensity,0.334,tCO2/MWth,https://www.eia.gov/environment/emissions/co2_vol_mass.php,,
+oil,2030,CO2 intensity,0.248,tCO2/MWth,https://www.eia.gov/environment/emissions/co2_vol_mass.php,,
+geothermal,2030,CO2 intensity,0.026,tCO2/MWth,https://www.eia.gov/environment/emissions/co2_vol_mass.php,,
+electrolysis,2030,investment,500,EUR/kWel,"DEA 2030 AEC 1 GW (sheet AEC, col E26, per kW input_e)",raw DEA = 500 EUR/kW_input; prior YAML used 669 (output basis),2020
+electrolysis,2030,FOM,2.0,%/year,DEA 2030 AEC 1 GW,,2020
+electrolysis,2030,lifetime,25,years,"DEA 2030 AEC 1 GW (sheet AEC, col E22)",,
+electrolysis,2030,efficiency,0.74,per unit,DEA 2030 AEC 1 GW (62.2% LHV → 74% HHV),,
+fuel cell,2030,investment,2475,EUR/kWel,Queensland report via archived YAML,no direct DEA fuel-cell sheet available,2020
+fuel cell,2030,FOM,2.0,%/year,archived YAML,,2020
+fuel cell,2030,lifetime,20,years,archived YAML,,
+fuel cell,2030,efficiency,0.5,per unit,archived YAML,H2→electricity,
+hydrogen storage tank,2030,investment,47.76,EUR/kWh,"DEA 2030 H2 Storage Tanks (sheet 151a, col E24, incl compressor+tanks+install)",replaces budischak2013 11.2 USD/kWh,2020
+hydrogen storage tank,2030,lifetime,30,years,"DEA 2030 H2 Storage Tanks (sheet 151a, col E18)",,
+hydrogen storage underground,2030,investment,0.542,EUR/kWh,maximum from https://www.nrel.gov/docs/fy10osti/46719.pdf [HICP 2013→2020],,2020
+hydrogen storage underground,2030,lifetime,40,years,http://www.acatech.de/fileadmin/user_upload/Baumstruktur_nach_Website/Acatech/root/de/Publikationen/Materialien/ESYS_Technologiesteckbrief_Energiespeicher.pdf,,
+H2 pipeline,2030,investment,400,EUR/MW/km,DEA 2030 H2 pipeline 70bar (0.4 EUR/MW/m for 1000-4000 MW band),user-confirmed DEA value,2020
+H2 pipeline,2030,lifetime,50,years,DEA 2030 H2 pipeline,,
+H2 pipeline,2030,FOM,5.0,%/year,Krieg2012 (retained),,2020
+H2 pipeline,2030,VOM,0,EUR/MWhel,assumed default-compatible explicit zero,,2020
+H2 pipeline,2030,efficiency,0.98,per unit,Krieg2012 (retained),,
+methanation,2030,investment,1084.0,EUR/kWH2,Schaber thesis [HICP 2013→2020],,2020
+methanation,2030,lifetime,25,years,Schaber thesis,,
+methanation,2030,FOM,3,%/year,Schaber thesis,,2013
+methanation,2030,efficiency,0.6,per unit,Palzer, Breyer for DAC,
+helmeth,2030,investment,1084.0,EUR/kW,no source [HICP 2013→2020],,2020
+helmeth,2030,lifetime,25,years,no source,,
+helmeth,2030,FOM,3,%/year,no source,,2013
+helmeth,2030,efficiency,0.8,per unit,HELMETH press release,,
+DAC,2030,investment,271.0,EUR/(tCO2/a),Fasihi/Climeworks [HICP 2013→2020],,2020
+DAC,2030,lifetime,30,years,Fasihi,,
+DAC,2030,FOM,4,%/year,Fasihi,,2013
+battery inverter,2030,investment,149,EUR/kWel,DEA 2030 Li-ion (84 power + 65 half of other project costs),from archived YAML battery_pcs_charge allocation,2020
+battery inverter,2030,lifetime,20,years,"DEA 2030 Li-ion (sheet 180, col E18)",,
+battery inverter,2030,efficiency,0.954,per unit charge/discharge,DEA 2030 Li-ion (91% AC roundtrip → sqrt = 0.954),,
+battery inverter,2030,FOM,3.0,%/year,DEA 2030 Li-ion,,2020
+battery storage,2030,investment,130,EUR/kWh,DEA 2030 Li-ion (65 energy + 65 half of other project costs),from archived YAML battery storage allocation,2020
+battery storage,2030,lifetime,20,years,"DEA 2030 Li-ion (sheet 180, col E18)",,
+decentral air-sourced heat pump,2030,investment,1138.2,EUR/kWth,HP [HICP 2013→2020], Palzer thesis,2020
+decentral air-sourced heat pump,2030,lifetime,20,years,HP, Palzer thesis,
+decentral air-sourced heat pump,2030,FOM,3.5,%/year,Palzer thesis,,2013
+decentral air-sourced heat pump,2030,efficiency,3,per unit,default for costs,,
+decentral air-sourced heat pump,2030,discount rate,0.04,per unit,Palzer thesis,,
+decentral ground-sourced heat pump,2030,investment,1517.6,EUR/kWth,Palzer thesis [HICP 2013→2020],,2020
+decentral ground-sourced heat pump,2030,lifetime,20,years,Palzer thesis,,
+decentral ground-sourced heat pump,2030,FOM,3.5,%/year,Palzer thesis,,2013
+decentral ground-sourced heat pump,2030,efficiency,4,per unit,default for costs,,
+decentral ground-sourced heat pump,2030,discount rate,0.04,per unit,Palzer thesis,,
+central air-sourced heat pump,2030,investment,758.8,EUR/kWth,Palzer thesis [HICP 2013→2020],,2020
+central air-sourced heat pump,2030,lifetime,20,years,Palzer thesis,,
+central air-sourced heat pump,2030,FOM,3.5,%/year,Palzer thesis,,2013
+central air-sourced heat pump,2030,efficiency,3,per unit,default for costs,,
+retrofitting I,2030,discount rate,0.04,per unit,Palzer thesis,,
+retrofitting I,2030,lifetime,50,years,Palzer thesis,,
+retrofitting I,2030,FOM,1,%/year,Palzer thesis,,2013
+retrofitting I,2030,investment,54.2,EUR/m2/fraction reduction,Palzer thesis [HICP 2013→2020],,2020
+retrofitting II,2030,discount rate,0.04,per unit,Palzer thesis,,
+retrofitting II,2030,lifetime,50,years,Palzer thesis,,
+retrofitting II,2030,FOM,1,%/year,Palzer thesis,,2013
+retrofitting II,2030,investment,271.0,EUR/m2/fraction reduction,Palzer thesis [HICP 2013→2020],,2020
+water tank charger,2030,efficiency,0.9,per unit,HP,,
+water tank discharger,2030,efficiency,0.9,per unit,HP,,
+decentral water tank storage,2030,investment,932.24,EUR/m3,IWES Interaktion [HICP 2013→2020],,2020
+decentral water tank storage,2030,FOM,1,%/year,HP,,2013
+decentral water tank storage,2030,lifetime,20,years,HP,,
+decentral water tank storage,2030,discount rate,0.04,per unit,Palzer thesis,,
+central water tank storage,2030,investment,32.52,EUR/m3,IWES Interaktion [HICP 2013→2020],,2020
+central water tank storage,2030,FOM,1,%/year,HP,,2013
+central water tank storage,2030,lifetime,40,years,HP,,
+decentral resistive heater,2030,investment,108.4,EUR/kWhth,Schaber thesis [HICP 2013→2020],,2020
+decentral resistive heater,2030,lifetime,20,years,Schaber thesis,,
+decentral resistive heater,2030,FOM,2,%/year,Schaber thesis,,2013
+decentral resistive heater,2030,efficiency,0.9,per unit,Schaber thesis,,
+decentral resistive heater,2030,discount rate,0.04,per unit,Palzer thesis,,
+central resistive heater,2030,investment,108.4,EUR/kWhth,Schaber thesis [HICP 2013→2020],,2020
+central resistive heater,2030,lifetime,20,years,Schaber thesis,,
+central resistive heater,2030,FOM,2,%/year,Schaber thesis,,2013
+central resistive heater,2030,efficiency,0.9,per unit,Schaber thesis,,
+decentral gas boiler,2030,investment,189.7,EUR/kWhth,Palzer thesis [HICP 2013→2020],,2020
+decentral gas boiler,2030,lifetime,20,years,Palzer thesis,,
+decentral gas boiler,2030,FOM,2,%/year,Palzer thesis,,2013
+decentral gas boiler,2030,efficiency,0.9,per unit,Palzer thesis,,
+decentral gas boiler,2030,discount rate,0.04,per unit,Palzer thesis,,
+central gas boiler,2030,investment,68.292,EUR/kWhth,Palzer thesis [HICP 2013→2020],,2020
+central gas boiler,2030,lifetime,22,years,Palzer thesis,,
+central gas boiler,2030,FOM,1,%/year,Palzer thesis,,2013
+central gas boiler,2030,efficiency,0.9,per unit,Palzer thesis,,
+decentral CHP,2030,lifetime,25,years,HP,,
+decentral CHP,2030,investment,1517.6,EUR/kWel,HP [HICP 2013→2020],,2020
+decentral CHP,2030,FOM,3,%/year,HP,,2013
+decentral CHP,2030,discount rate,0.04,per unit,Palzer thesis,,
+central CHP,2030,lifetime,25,years,HP,,
+central CHP,2030,investment,704.6,EUR/kWel,HP [HICP 2013→2020],,2020
+central CHP,2030,FOM,3,%/year,HP,,2013
+decentral solar thermal,2030,discount rate,0.04,per unit,Palzer thesis,,
+decentral solar thermal,2030,FOM,1.3,%/year,HP,,2013
+decentral solar thermal,2030,investment,292680.0,EUR/1000m2,HP [HICP 2013→2020],,2020
+decentral solar thermal,2030,lifetime,20,years,HP,,
+central solar thermal,2030,FOM,1.4,%/year,HP,,2013
+central solar thermal,2030,investment,151760.0,EUR/1000m2,HP [HICP 2013→2020],,2020
+central solar thermal,2030,lifetime,20,years,HP,,
+HVAC overhead,2030,investment,433.6,EUR/MW/km,Hagspiel [HICP 2013→2020],,2020
+HVAC overhead,2030,lifetime,40,years,Hagspiel,,
+HVAC overhead,2030,FOM,2,%/year,Hagspiel,,2013
+HVDC overhead,2030,investment,433.6,EUR/MW/km,Hagspiel [HICP 2013→2020],,2020
+HVDC overhead,2030,lifetime,40,years,Hagspiel,,
+HVDC overhead,2030,FOM,2,%/year,Hagspiel,,2013
+HVDC submarine,2030,investment,2168.0,EUR/MW/km,DTU report based on Fig 34 of https://ec.europa.eu/energy/sites/ener/files/documents/2014_nsog_report.pdf [HICP 2013→2020],,2020
+HVDC submarine,2030,lifetime,40,years,Hagspiel,,
+HVDC submarine,2030,FOM,2,%/year,Hagspiel,,2013
+HVDC inverter pair,2030,investment,162600.0,EUR/MW,Hagspiel [HICP 2013→2020],,2020
+HVDC inverter pair,2030,lifetime,40,years,Hagspiel,,
+HVDC inverter pair,2030,FOM,2,%/year,Hagspiel,,2013
+csp-tower,2030,FOM,1.1,%/year,ATB CSP data (https://atb.nrel.gov/electricity/2021/concentrating_solar_power),,2013
+csp-tower,2030,investment,117.47308,"EUR/kW_th,dp",ATB CSP data (https://atb.nrel.gov/electricity/2021/concentrating_solar_power) and NREL SAM v2021.12.2 (https://sam.nrel.gov/). [HICP 2013→2020],,2020
+csp-tower,2030,lifetime,30,years,ATB CSP data (https://atb.nrel.gov/electricity/2021/concentrating_solar_power),,
+csp-tower TES,2030,FOM,1.1,%/year,see solar-tower.,,2013
+csp-tower TES,2030,investment,15.73968,EUR/kWh_th,ATB CSP data (https://atb.nrel.gov/electricity/2021/concentrating_solar_power) and NREL SAM v2021.12.2 (https://sam.nrel.gov/). [HICP 2013→2020],,2020
+csp-tower TES,2030,lifetime,30,years,see solar-tower.,,
+csp-tower power block,2030,FOM,1.1,%/year,see solar-tower.,,2013
+csp-tower power block,2030,investment,822.94028,EUR/kW_e,ATB CSP data (https://atb.nrel.gov/electricity/2021/concentrating_solar_power) and NREL SAM v2021.12.2 (https://sam.nrel.gov/). [HICP 2013→2020],,2020
+csp-tower power block,2030,lifetime,30,years,see solar-tower.,,
+ammonia synthesis,2030,investment,1526,EUR/kWel,DEA 2030 Hydrogen to Ammonia,from archived DEA ammonia config; NOTE: ~2x literature median (IRENA 600-900 USD/kW_NH3) — includes 50% installation share and European EPC costs. Sensitivity analysis recommended.,2020
+ammonia synthesis,2030,FOM,3.0,%/year,DEA 2030,,2020
+ammonia synthesis,2030,lifetime,30,years,DEA 2030,,
+ammonia synthesis,2030,efficiency,0.881,per unit,DEA 2030,H2-to-NH3 conversion (1/1.13472),
+ammonia storage,2030,investment,0.52174,EUR/kWh,Queensland report via archived YAML,,2020
+ammonia storage,2030,lifetime,30,years,Queensland report via archived YAML,,
+ammonia storage,2030,FOM,3.0,%/year,Queensland report via archived YAML,,2020
+CCGT NH3,2030,lifetime,30,years,user,kept at 30y for NH3 variant,
+CCGT NH3,2030,investment,883,EUR/kWel,aligned with CCGT DEA 2030,,2020
+CCGT NH3,2030,FOM,3.35,%/year,aligned with CCGT DEA 2030,,2020
+CCGT NH3,2030,VOM,4.47,EUR/MWhel,aligned with CCGT DEA 2030,,2020
+CCGT NH3,2030,efficiency,0.58,per unit,aligned with CCGT DEA 2030,,
+NH3 pipeline,2030,investment,200,EUR/MW/km,DEA 2030 NH3 pipeline (0.2 EUR/MW/m for large-capacity band),user-confirmed DEA value,2020
+NH3 pipeline,2030,lifetime,50,years,DEA 2030 NH3 pipeline,,
+NH3 pipeline,2030,FOM,5.0,%/year,aligned with H2 pipeline,,2020
+NH3 pipeline,2030,VOM,0,EUR/MWhel,assumed default-compatible explicit zero,,2020
+NH3 pipeline,2030,efficiency,0.98,per unit,aligned with H2 pipeline,,

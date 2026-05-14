@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText:  PyPSA-Earth and PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Staging config to download Mauritius inputs and build the annual cutout.
+# Use this when refreshing source data before profile or solve runs.
+
+version: 0.8.0
+tutorial: false
+
+logging:
+  level: INFO
+  format: "%(levelname)s:%(name)s:%(message)s"
+
+results_dir: results/
+summary_dir: results/
+
+foresight: overnight
+
+countries:
+  - MU
+
+enable:
+  retrieve_databundle: true
+  retrieve_databundle_sector: false
+  retrieve_cost_data: false
+  download_osm_data: true
+  download_global_buildings: false
+  build_natura_raster: false
+  build_cutout: true
+  progress_bar: true
+  custom_busmap: false
+
+custom_rules: []
+
+run:
+  name: "mauritius-year-1"
+  sector_name: ""
+  shared_cutouts: true
+  allow_scenario_failure: false
+
+scenario:
+  simpl: [""]
+  ll: ["copt"]
+  clusters: [1]
+  opts: [3h]
+  planning_horizons:
+  - 2030
+  sopts:
+  - "8760h"
+  demand:
+  - "AB"
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: "left"
+
+atlite:
+  nprocesses: 4
+  cutouts:
+    cutout-2013-era5:
+      module: era5
+      dx: 0.1
+      dy: 0.1
+
+electricity:
+  extendable_carriers:
+    Generator: [solar, onwind, offwind-ac, offwind-dc, OCGT, CCGT]
+    StorageUnit: []
+    Store: [battery]
+    Link: []
+

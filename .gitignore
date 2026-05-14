@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+*.bak
+
+# Jupyter
+**/.ipynb_checkpoints
+
+# Results and outputs
+results/**
+!results/
+!results/.gitkeep
+logs/
+slurm-*.out
+
+# Local data downloads
+data_remote/
+
+# Editor
+.vscode/
+*.code-workspace
