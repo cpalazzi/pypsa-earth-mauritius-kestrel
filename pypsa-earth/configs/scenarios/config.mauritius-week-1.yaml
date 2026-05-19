@@ -42,7 +42,7 @@ run:
 scenario:
   simpl: [""]
   ll: ["copt"]
-  clusters: [1]
+  clusters: ["12flex"]
   opts: [3h-week01]
   planning_horizons:
   - 2030

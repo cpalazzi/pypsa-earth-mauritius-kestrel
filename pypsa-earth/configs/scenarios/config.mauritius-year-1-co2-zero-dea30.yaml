@@ -42,7 +42,7 @@ run:
 scenario:
   simpl: [""]
   ll: ["copt"]
-  clusters: [1]
+  clusters: ["12flex"]
   opts: [Co2zero-3h-DEA30]
   planning_horizons:
   - 2030

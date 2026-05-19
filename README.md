@@ -5,7 +5,7 @@ Working PyPSA-Earth fork for modelling the Mauritius electricity system. The rep
 ## Focus
 
 - Country scope: Mauritius (`MU`)
-- Initial model: single-node electricity system (`mauritius-year-1`)
+- Initial model: up-to-12-node electricity system (`mauritius-year-1`)
 - First priority: existing and standard electricity technologies
 - Extension cases: hydrogen and ammonia are available but kept out of the default run
 - Solver: Gurobi by default, with the upstream PyPSA-Earth solver configuration retained
@@ -66,7 +66,7 @@ Then run the baseline solve:
 
 ```bash
 snakemake --cores 4 \
-  results/mauritius-year-1/networks/elec_s_1_ec_lcopt_3h.nc \
+  results/mauritius-year-1/networks/elec_s_12flex_ec_lcopt_3h.nc \
   --configfile configs/scenarios/config.mauritius-year-1.yaml
 ```
 

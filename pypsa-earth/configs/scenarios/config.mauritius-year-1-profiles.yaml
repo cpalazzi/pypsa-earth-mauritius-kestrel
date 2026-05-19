@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Profile build for the Mauritius single-node annual workflow.
+# Profile build for the Mauritius up-to-12-node annual workflow.
 # Run this first to prepare the cutout and renewable profiles reused by solves.
 
 version: 0.8.0
@@ -42,7 +42,7 @@ run:
 scenario:
   simpl: [""]
   ll: ["copt"]
-  clusters: [1]
+  clusters: ["12flex"]
   opts: [3h]
   planning_horizons:
   - 2030

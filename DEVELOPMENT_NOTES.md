@@ -7,7 +7,7 @@ This repo is a working PyPSA-Earth fork for Mauritius electricity-system modelli
 ## Current Modelling Scope
 
 - Country: Mauritius (`MU`)
-- Base network: single-node aggregation (`clusters: [1]`)
+- Base network: up-to-12-node default aggregation (`clusters: ["12flex"]`)
 - Weather/load year: 2013 weather year with 2030 planning horizon
 - Default run: `mauritius-year-1`, standard electricity technologies only
 - Extension runs: H2 and NH3 are retained for later comparison, not the first modelling focus
@@ -55,6 +55,29 @@ Default local ARC values in scripts still target the Oxford project area:
 
 Override with environment variables where needed, for example `ARC_PYPSA_ENV`, `ARC_WORKDIR`, `ARC_GROUP`, or `ARC_REPO_URL`.
 
+## ARC SSH Socket
+
+At the start of each working session, open a reusable ARC SSH control socket from a normal local terminal where you can enter the ARC password:
+
+```bash
+ssh -M -S ~/.ssh/arc-oxford-codex.sock -fnNT arc-oxford
+```
+
+Codex can then reuse that socket non-interactively:
+
+```bash
+ssh -S ~/.ssh/arc-oxford-codex.sock -o BatchMode=yes arc-oxford 'hostname'
+```
+
+Use the same socket for `rsync`:
+
+```bash
+rsync -az -e "ssh -S $HOME/.ssh/arc-oxford-codex.sock -o BatchMode=yes" \
+  ./ arc-oxford:/data/engs-df-green-ammonia/engs2523/pypsa-earth-mauritius-kestrel/
+```
+
+If ARC returns `Permission denied` or the socket path is missing, recreate the socket in a local terminal before asking Codex to run ARC commands. Do not type the ARC password into Codex.
+
 ## ARC Run Sequence
 
 From `pypsa-earth/`:
@@ -79,20 +102,30 @@ sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
   configs/scenarios/config.mauritius-year-1.yaml
 ```
 
-Chain variants:
+Chain variants on the same ARC cluster. On multi-cluster ARC submissions, pass `-M arc` explicitly so dependencies are not lost across clusters:
 
 ```bash
-JOB1_RAW=$(sbatch --parsable ../arc/jobs/02_build_networks_and_solve_power.sh \
+JOB1_RAW=$(sbatch -M arc --parsable ../arc/jobs/02_build_networks_and_solve_power.sh \
   mauritius-year-1 configs/scenarios/config.mauritius-year-1.yaml)
 JOB1=${JOB1_RAW%%;*}
 
-JOB2_RAW=$(sbatch --dependency=afterany:$JOB1 --parsable ../arc/jobs/02_build_networks_and_solve_power.sh \
+JOB2_RAW=$(sbatch -M arc --dependency=afterany:$JOB1 --parsable ../arc/jobs/02_build_networks_and_solve_power.sh \
   mauritius-year-1-co2-zero-dea30 configs/scenarios/config.mauritius-year-1-co2-zero-dea30.yaml)
 JOB2=${JOB2_RAW%%;*}
 
-sbatch --dependency=afterany:$JOB2 ../arc/jobs/02_build_networks_and_solve_power.sh \
+sbatch -M arc --dependency=afterany:$JOB2 ../arc/jobs/02_build_networks_and_solve_power.sh \
   mauritius-year-1-h2-dea30 configs/scenarios/config.mauritius-year-1-h2-dea30.yaml
 ```
+
+## Spatial Resolution
+
+Default solve configs use `clusters: ["12flex"]`. The profile build and cutout are not the same as network clustering:
+
+- The ERA5/atlite cutout is configured with `dx: 0.1`, `dy: 0.1` degrees for Mauritius.
+- Renewable profiles are built against unclustered onshore/offshore bus regions under `resources/mauritius-year-1/renewable_profiles/`.
+- `cluster_network` later aggregates the electrical network to the requested `clusters` value and writes outputs such as `elec_s_12flex...`.
+
+Do not use `clusters: [140]` as the default for Mauritius. It is likely more spatial detail than the island size, ERA5 grid, OSM network quality, and demand data can justify, and it may exceed the number of available model buses. Use 12flex as the first resolved run, then compare against 1, 6, and 24 if the OSM network supports it.
 
 ## Analysis Flow
 
