@@ -46,6 +46,9 @@ All solve configs share `run.name: mauritius-year-1` so they reuse the same annu
 source pypsa-earth/.venv/bin/activate
 ```
 
+The setup script registers a Jupyter kernel named `pypsa-earth-mauritius-kestrel`
+with display name `Python (PyPSA-Earth Mauritius)`.
+
 Dry-run the baseline after setup:
 
 ```bash

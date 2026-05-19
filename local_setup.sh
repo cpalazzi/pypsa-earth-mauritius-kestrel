@@ -175,7 +175,9 @@ echo ""
 
 # Create Jupyter kernel
 echo "Installing Jupyter kernel..."
-python -m ipykernel install --user --name pypsa-earth --display-name "Python (PyPSA-Earth)"
+python -m ipykernel install --user \
+    --name pypsa-earth-mauritius-kestrel \
+    --display-name "Python (PyPSA-Earth Mauritius)"
 echo "  ✓ Jupyter kernel installed"
 echo ""
 
@@ -198,6 +200,7 @@ echo "  snakemake --configfile configs/scenarios/config.mauritius-year-1.yaml --
 echo ""
 echo "To start Jupyter:"
 echo "  jupyter lab"
+echo "  Select kernel: Python (PyPSA-Earth Mauritius)"
 echo ""
 echo "Next steps:"
 echo "  1. Ensure Gurobi license is configured"

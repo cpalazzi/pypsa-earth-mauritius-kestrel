@@ -78,6 +78,17 @@ rsync -az -e "ssh -S $HOME/.ssh/arc-oxford-codex.sock -o BatchMode=yes" \
 
 If ARC returns `Permission denied` or the socket path is missing, recreate the socket in a local terminal before asking Codex to run ARC commands. Do not type the ARC password into Codex.
 
+## Local Analysis Environment
+
+Create the repo-local Python environment with:
+
+```bash
+./local_setup.sh
+source pypsa-earth/.venv/bin/activate
+```
+
+Use the Jupyter kernel `pypsa-earth-mauritius-kestrel` (`Python (PyPSA-Earth Mauritius)`) for the analysis notebooks. Do not copy `.venv` from another PyPSA-Earth checkout; compiled geospatial dependencies and kernel paths are repo- and machine-specific.
+
 ## ARC Run Sequence
 
 From `pypsa-earth/`:
