@@ -69,8 +69,68 @@ if [[ -z "$RUN_NAME" ]]; then
   exit 2
 fi
 
-PROFILE_TECHS_STR=${ARC_PROFILE_TECHS:-"onwind offwind-ac offwind-dc solar hydro csp"}
-read -r -a PROFILE_TECHS <<< "$PROFILE_TECHS_STR"
+if [[ -n "${ARC_PROFILE_TECHS:-}" ]]; then
+  read -r -a PROFILE_TECHS <<< "$ARC_PROFILE_TECHS"
+else
+  mapfile -t PROFILE_TECHS < <("$PYTHON_BIN" - "$CONFIG_FILE" <<'PY'
+import os
+import sys
+
+cfg_file = sys.argv[1]
+workdir = os.getcwd()
+
+try:
+    import yaml
+except Exception as exc:
+    print(f"__YAML_IMPORT_ERROR__:{exc}")
+    raise SystemExit(0)
+
+def load_yaml(path):
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+def deep_merge(base, override):
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+cfg = {}
+for path in ("config.default.yaml", "config.yaml"):
+    cfg = deep_merge(cfg, load_yaml(os.path.join(workdir, path)))
+
+cfg_path = cfg_file if os.path.isabs(cfg_file) else os.path.join(workdir, cfg_file)
+cfg_override = load_yaml(cfg_path)
+base_config = (cfg_override.get("run", {}) or {}).get("base_config") or cfg_override.get("base_config")
+if base_config:
+    base_path = base_config if os.path.isabs(base_config) else os.path.join(workdir, base_config)
+    cfg = deep_merge(cfg, load_yaml(base_path))
+cfg = deep_merge(cfg, cfg_override)
+
+renewable = cfg.get("renewable", {}) or {}
+electricity = cfg.get("electricity", {}) or {}
+carriers = set(electricity.get("renewable_carriers", []) or [])
+for tech in sorted(tech for tech in renewable if tech in carriers):
+    print(tech)
+PY
+  )
+
+  if [[ ${#PROFILE_TECHS[@]} -eq 1 && "${PROFILE_TECHS[0]}" == __YAML_IMPORT_ERROR__:* ]]; then
+    echo "ERROR: Could not import PyYAML with $PYTHON_BIN." >&2
+    echo "Install PyYAML or run from the project environment." >&2
+    exit 2
+  fi
+fi
+
+if [[ ${#PROFILE_TECHS[@]} -eq 0 ]]; then
+  echo "ERROR: No renewable profile technologies detected from $CONFIG_FILE" >&2
+  echo "Set ARC_PROFILE_TECHS explicitly if this is intentional." >&2
+  exit 2
+fi
 
 PROFILE_DIR="resources/${RUN_NAME}/renewable_profiles"
 PROFILE_CONFIG_CANDIDATE="configs/scenarios/config.${RUN_NAME}-profiles.yaml"
