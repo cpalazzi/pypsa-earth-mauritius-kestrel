@@ -43,7 +43,7 @@ All solve configs share `run.name: mauritius-year-1` so they reuse the same annu
 
 ```bash
 ./local_setup.sh
-source pypsa-earth/.venv/bin/activate
+source .venv/bin/activate
 ```
 
 The setup script registers a Jupyter kernel named `pypsa-earth-mauritius-kestrel`

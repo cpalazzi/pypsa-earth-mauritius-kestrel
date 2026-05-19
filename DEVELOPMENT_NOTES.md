@@ -84,10 +84,10 @@ Create the repo-local Python environment with:
 
 ```bash
 ./local_setup.sh
-source pypsa-earth/.venv/bin/activate
+source .venv/bin/activate
 ```
 
-Use the Jupyter kernel `pypsa-earth-mauritius-kestrel` (`Python (PyPSA-Earth Mauritius)`) for the analysis notebooks. Do not copy `.venv` from another PyPSA-Earth checkout; compiled geospatial dependencies and kernel paths are repo- and machine-specific.
+Use the repo-root `.venv` and Jupyter kernel `pypsa-earth-mauritius-kestrel` (`Python (PyPSA-Earth Mauritius)`) for the analysis notebooks. Do not copy `.venv` from another PyPSA-Earth checkout; compiled geospatial dependencies and kernel paths are repo- and machine-specific.
 
 ## ARC Run Sequence
 

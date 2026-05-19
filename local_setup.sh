@@ -9,10 +9,16 @@ echo "PyPSA-Earth Local Development Setup"
 echo "=================================================="
 echo ""
 
-# Navigate to pypsa-earth directory
-cd "$(dirname "$0")/pypsa-earth"
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+PYPSA_DIR="$REPO_ROOT/pypsa-earth"
+VENV_DIR="$REPO_ROOT/.venv"
 
-echo "Current directory: $(pwd)"
+# Use pypsa-earth as the workflow directory, but keep the venv at repo root so
+# VSCode and Jupyter discover it naturally.
+cd "$PYPSA_DIR"
+
+echo "Repository root: $REPO_ROOT"
+echo "Workflow directory: $(pwd)"
 echo ""
 
 # Check Python version
@@ -41,28 +47,28 @@ fi
 echo ""
 
 # Check if .venv exists
-if [ -d ".venv" ]; then
+if [ -d "$VENV_DIR" ]; then
     echo "Virtual environment already exists."
     read -p "  Remove and recreate? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf .venv
+        rm -rf "$VENV_DIR"
     else
         echo "  Using existing virtual environment."
-        echo "  Activate with: source pypsa-earth/.venv/bin/activate"
+        echo "  Activate with: source .venv/bin/activate"
         exit 0
     fi
 fi
 
 # Create virtual environment
 echo "Creating virtual environment..."
-$PYTHON_CMD -m venv .venv
+$PYTHON_CMD -m venv "$VENV_DIR"
 echo "  ✓ Virtual environment created"
 echo ""
 
 # Activate virtual environment
 echo "Activating virtual environment..."
-source .venv/bin/activate
+source "$VENV_DIR/bin/activate"
 echo "  ✓ Virtual environment activated"
 echo ""
 
@@ -186,10 +192,10 @@ echo "=================================================="
 echo "Setup Complete!"
 echo "=================================================="
 echo ""
-echo "Virtual environment created at: $(pwd)/.venv"
+echo "Virtual environment created at: $VENV_DIR"
 echo ""
 echo "To activate the environment:"
-echo "  source pypsa-earth/.venv/bin/activate"
+echo "  source .venv/bin/activate"
 echo ""
 echo "To deactivate:"
 echo "  deactivate"
