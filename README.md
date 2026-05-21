@@ -129,6 +129,7 @@ The notebooks in `notebooks/` keep the analysis structure from green-auklet and 
 2. `01_run_analysis.ipynb`
 3. `02_resolution_analysis.ipynb`
 4. `03_storage_soc_comparison.ipynb`
+5. `04_profiles_analysis.ipynb`
 
 The notebooks are intended to evolve with Mauritius-specific validation data, especially existing plant capacities, fuel prices, demand calibration, and policy targets.
 
