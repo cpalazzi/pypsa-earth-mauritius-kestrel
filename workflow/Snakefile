@@ -1,0 +1,5 @@
+configfile: "config/energy.yaml"
+
+include: "0-preprocess/energy.smk"
+include: "1-simulate/energy.smk"
+

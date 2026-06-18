@@ -55,6 +55,9 @@ if [ -d "$VENV_DIR" ]; then
         rm -rf "$VENV_DIR"
     else
         echo "  Using existing virtual environment."
+        source "$VENV_DIR/bin/activate"
+        pip install -e "$REPO_ROOT"
+        pip install pytest
         echo "  Activate with: source .venv/bin/activate"
         exit 0
     fi
@@ -103,7 +106,7 @@ if [ -f "envs/environment.yaml" ]; then
         pip install powerplantmatching
         pip install "earth-osm>=2.3.post1"
         pip install xlrd openpyxl seaborn
-        pip install "snakemake<8"
+        pip install "snakemake<8" "pulp<2.8"
         pip install memory_profiler
         pip install "ruamel.yaml<=0.17.26"
         pip install tables  # pytables
@@ -122,6 +125,7 @@ if [ -f "envs/environment.yaml" ]; then
         pip install reverse-geocode
         pip install country_converter
         pip install pyogrio
+        pip install pyarrow
         pip install numba
         pip install py7zr
         pip install "tsam>=1.1.0"
@@ -150,7 +154,8 @@ if [ -f "envs/environment.yaml" ]; then
         pip install pandas geopandas xarray networkx
         pip install matplotlib seaborn
         pip install jupyterlab ipykernel
-        pip install "snakemake<8"
+        pip install "snakemake<8" "pulp<2.8"
+        pip install pyarrow
         echo "  ✓ Core packages installed"
     fi
 else
@@ -158,10 +163,15 @@ else
     pip install pypsa pandas geopandas xarray networkx
     pip install matplotlib seaborn
     pip install jupyterlab ipykernel
-    pip install snakemake
+    pip install "snakemake<8" "pulp<2.8"
+    pip install pyarrow
     echo "  ✓ Core packages installed"
 fi
 echo ""
+
+# Install this repository's mu-star energy package.
+pip install -e "$REPO_ROOT"
+pip install pytest
 
 # Install Gurobi
 echo "Installing Gurobi..."

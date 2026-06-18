@@ -12,15 +12,24 @@ venv/
 # Jupyter
 **/.ipynb_checkpoints
 
-# Results and outputs
+# Results and legacy PyPSA-Earth outputs
 results/**
 !results/
 !results/.gitkeep
 logs/
 slurm-*.out
 
-# Local data downloads
+# mu-star style data stages
 data_remote/
+data/incoming/**
+!data/incoming/
+!data/incoming/README.md
+data/processed/**
+!data/processed/
+!data/processed/README.md
+data/out/**
+!data/out/
+!data/out/README.md
 
 # Editor
 .vscode/

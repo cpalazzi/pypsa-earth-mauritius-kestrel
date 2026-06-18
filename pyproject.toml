@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mu-star-energy"
+version = "0.1.0"
+description = "Mauritius fixed-asset electricity network and disruption model"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "geopandas>=1",
+    "networkx>=3",
+    "numpy",
+    "pandas>=2",
+    "pyarrow",
+    "pypsa>=0.30,<0.31",
+    "pyyaml",
+    "shapely>=2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "snakemake<8", "pulp<2.8"]
+
+[project.scripts]
+mu-star-energy = "mu_star_energy.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mu_star_energy"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
