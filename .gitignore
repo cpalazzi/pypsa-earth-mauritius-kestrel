@@ -12,10 +12,7 @@ venv/
 # Jupyter
 **/.ipynb_checkpoints
 
-# Results and legacy PyPSA-Earth outputs
-results/**
-!results/
-!results/.gitkeep
+# Run logs
 logs/
 slurm-*.out
 

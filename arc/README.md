@@ -85,7 +85,7 @@ sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS,NodeList,ExitCode
 ## Download Results
 
 ```bash
-rsync -av --progress <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-mauritius-kestrel/results/mauritius-year-1/ results/mauritius-year-1/
+rsync -av --progress <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-mauritius-kestrel/pypsa-earth/results/mauritius-year-1/ pypsa-earth/results/mauritius-year-1/
 ```
 
 ## Troubleshooting

@@ -9,6 +9,7 @@ from pathlib import Path
 import geopandas as gpd
 
 from mu_star_energy.intake import prepare_collaborator_data
+from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
 from mu_star_energy.topology import build_substation_topology
 
 
@@ -48,13 +49,21 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare-assets")
-    prepare.add_argument("--input-dir", required=True)
-    prepare.add_argument("--output-dir", required=True)
+    prepare.add_argument(
+        "--input-dir", type=Path, default=incoming_energy_dir() / "collaborator"
+    )
+    prepare.add_argument(
+        "--output-dir", type=Path, default=processed_energy_dir() / "collaborator"
+    )
     prepare.set_defaults(func=_prepare_assets)
 
     topology = subparsers.add_parser("build-topology")
-    topology.add_argument("--processed-dir", required=True)
-    topology.add_argument("--output-dir", required=True)
+    topology.add_argument(
+        "--processed-dir", type=Path, default=processed_energy_dir() / "collaborator"
+    )
+    topology.add_argument(
+        "--output-dir", type=Path, default=processed_energy_dir() / "network"
+    )
     topology.add_argument("--snap-tolerance-m", type=float, default=2500)
     topology.add_argument("--default-voltage-kv", type=float, default=66)
     topology.set_defaults(func=_build_topology)
@@ -68,4 +77,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

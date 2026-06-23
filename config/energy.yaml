@@ -1,22 +1,17 @@
 data_root: data
 
 energy:
-  incoming_dir: data/incoming/energy/collaborator
-  processed_dir: data/processed/energy/collaborator
-  topology_dir: data/processed/energy/network
-
   topology:
     default_voltage_kv: 66
     snap_tolerance_m: 2500
 
   distribution_proxy:
-    # Optional external inputs. GridFinder is an inferred spatial proxy, not a
-    # validated electrical network.
-    gridfinder_lines: data/incoming/energy/gridfinder/grid.gpkg
-    osm_distribution_lines: data/incoming/energy/osm/distribution_lines.parquet
+    # Paths are relative to data_root. GridFinder is an inferred spatial proxy,
+    # not a validated electrical network.
+    gridfinder_lines: incoming/energy/gridfinder/grid.gpkg
+    osm_distribution_lines: incoming/energy/osm/distribution_lines.parquet
 
   operations:
     solver: highs
     value_of_lost_load_eur_per_mwh: 10000
     capacity_expansion: false
-

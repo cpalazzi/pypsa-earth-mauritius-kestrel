@@ -81,9 +81,10 @@ class EnergyModel:
         weights = disrupted.snapshot_weightings.generators.reindex(
             disrupted.snapshots
         ).fillna(1.0)
-        total_demand = float(
-            disrupted.loads_t.p_set.mul(weights, axis=0).sum().sum()
+        demand = disrupted.get_switchable_as_dense("Load", "p_set").reindex(
+            disrupted.snapshots
         )
+        total_demand = float(demand.mul(weights, axis=0).sum().sum())
         shedding_names = disrupted.generators.index[
             disrupted.generators.carrier.eq("load_shedding")
         ]
@@ -105,4 +106,3 @@ class EnergyModel:
             },
             network=disrupted,
         )
-

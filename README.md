@@ -61,13 +61,18 @@ and greenfield expansion scenarios are legacy comparison cases.
 │   ├── incoming/                # Raw OneDrive, OSM and GridFinder inputs
 │   ├── processed/               # Reproducible analysis-ready assets
 │   └── out/                     # Disruption results
-├── pypsa-earth/                 # Vendored baseline workflow
+├── pypsa-earth/                 # Vendored baseline workflow and its outputs
 ├── arc/                         # Legacy PyPSA-Earth ARC scripts
 └── DEVELOPMENT_NOTES.md
 ```
 
-Data contents are ignored by git. Set `MU_STAR_DATA_ROOT` to use a shared
-OneDrive-synchronised or other external data directory:
+The root project has one data tree. `incoming`, `processed`, and `out` are
+lifecycle stages, not separate data stores. PyPSA-Earth's own `data/`,
+`resources/`, `networks/`, and `results/` stay inside the vendored
+`pypsa-earth/` directory.
+
+Project data contents are ignored by git. Set `MU_STAR_DATA_ROOT` to use a
+shared OneDrive-synchronised or other external data directory:
 
 ```bash
 export MU_STAR_DATA_ROOT="/path/to/shared/mu-star-data"
@@ -94,13 +99,8 @@ Run tests:
 ## Prepare Current Collaborator Data
 
 ```bash
-.venv/bin/python -m mu_star_energy.cli prepare-assets \
-  --input-dir data/incoming/energy/collaborator \
-  --output-dir data/processed/energy/collaborator
-
-.venv/bin/python -m mu_star_energy.cli build-topology \
-  --processed-dir data/processed/energy/collaborator \
-  --output-dir data/processed/energy/network
+.venv/bin/python -m mu_star_energy.cli prepare-assets
+.venv/bin/python -m mu_star_energy.cli build-topology
 ```
 
 Equivalent Snakemake target:

@@ -1,10 +1,5 @@
 """Prepare collaborator energy assets and infer the transmission topology."""
 
-INCOMING_ENERGY = config["energy"]["incoming_dir"]
-PROCESSED_ENERGY = config["energy"]["processed_dir"]
-TOPOLOGY_DIR = config["energy"]["topology_dir"]
-
-
 rule prepare_energy_assets:
     input:
         workbook=f"{INCOMING_ENERGY}/power_demand/Power Demand.xlsx",

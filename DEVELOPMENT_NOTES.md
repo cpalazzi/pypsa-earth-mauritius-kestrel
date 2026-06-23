@@ -28,7 +28,9 @@ The repository follows the mu-star convention:
 data/incoming  ->  data/processed  ->  data/out
 ```
 
-All contents are ignored. Only READMEs, processing code and configuration are
+These are the three stages of one project data tree. Do not add parallel
+top-level `data_private`, `data_derived`, or `results` directories. All
+contents are ignored. Only READMEs, processing code and configuration are
 tracked. `MU_STAR_DATA_ROOT` can point these stages at the shared project data
 location, including a locally synchronised OneDrive folder.
 
@@ -159,8 +161,8 @@ replace this simple relationship.
 - open-data powerplant cross-checks.
 
 The existing annual run is `mauritius-year-1`, with ARC instructions retained
-under `arc/`. These results are validation/reference material, not the primary
-mu-star model.
+under `arc/`. Its resources, networks and results stay under `pypsa-earth/`;
+they are validation/reference material, not the primary mu-star model.
 
 At the start of an ARC session, create the SSH control socket in a normal
 terminal:
