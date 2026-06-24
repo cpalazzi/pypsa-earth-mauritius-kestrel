@@ -4,10 +4,10 @@ import os
 configfile: "config/energy.yaml"
 
 DATA_ROOT = os.environ.get("MU_STAR_DATA_ROOT", config.get("data_root", "data"))
-INCOMING_ENERGY = f"{DATA_ROOT}/incoming/energy/collaborator"
-PROCESSED_ENERGY = f"{DATA_ROOT}/processed/energy/collaborator"
-TOPOLOGY_DIR = f"{DATA_ROOT}/processed/energy/network"
-OUTPUT_ENERGY = f"{DATA_ROOT}/out/energy"
+INCOMING_ENERGY = f"{DATA_ROOT}/0-incoming/energy/collaborator"
+PROCESSED_ENERGY = f"{DATA_ROOT}/1-processed/energy/collaborator"
+TOPOLOGY_DIR = f"{DATA_ROOT}/1-processed/energy/network"
+OUTPUT_ENERGY = f"{DATA_ROOT}/2-out/energy"
 
 include: "0-preprocess/energy.smk"
 include: "1-simulate/energy.smk"

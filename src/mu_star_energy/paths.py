@@ -26,13 +26,12 @@ def data_root() -> Path:
 
 
 def incoming_energy_dir() -> Path:
-    return data_root() / "incoming" / "energy"
+    return data_root() / "0-incoming" / "energy"
 
 
 def processed_energy_dir() -> Path:
-    return data_root() / "processed" / "energy"
+    return data_root() / "1-processed" / "energy"
 
 
 def output_energy_dir() -> Path:
-    return data_root() / "out" / "energy"
-
+    return data_root() / "2-out" / "energy"

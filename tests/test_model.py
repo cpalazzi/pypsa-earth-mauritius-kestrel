@@ -1,8 +1,9 @@
 import pandas as pd
 import pypsa
+import pytest
 
 from mu_star_energy.model import EnergyModel, apply_disruptions
-from mu_star_energy.network import assert_fixed_capacity
+from mu_star_energy.network import assert_fixed_capacity, build_operational_network
 
 
 def simple_network():
@@ -72,3 +73,55 @@ def test_simulate_reports_unserved_energy_after_generator_derating():
 
     assert result.metrics["unserved_energy_mwh"] == 55.0
     assert result.metrics["served_fraction"] == 0.3125
+
+
+def test_operational_network_rejects_missing_generator_marginal_cost():
+    geopandas = pytest.importorskip("geopandas")
+    shapely_geometry = pytest.importorskip("shapely.geometry")
+
+    buses = geopandas.GeoDataFrame(
+        {
+            "bus_id": ["A", "B"],
+            "v_nom_kv": [66, 66],
+            "geometry": [
+                shapely_geometry.Point(57.5, -20.2),
+                shapely_geometry.Point(57.6, -20.2),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    lines = geopandas.GeoDataFrame(
+        {
+            "line_id": ["AB"],
+            "bus0": ["A"],
+            "bus1": ["B"],
+            "v_nom_kv": [66],
+            "length_km": [10.0],
+            "s_nom_mva": [100.0],
+            "geometry": [
+                shapely_geometry.LineString([(57.5, -20.2), (57.6, -20.2)])
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    generators = pd.DataFrame(
+        {
+            "generator_id": ["plant"],
+            "bus_id": ["A"],
+            "carrier": ["thermal"],
+            "capacity_mw": [50.0],
+            "marginal_cost": [float("nan")],
+        }
+    )
+    demand = pd.DataFrame(
+        {"demand_mw": [40.0]},
+        index=pd.date_range("2025-01-01", periods=1, freq="h"),
+    )
+    service_weights = pd.DataFrame(
+        {"bus_id": ["A", "B"], "service_weight": [0.5, 0.5]}
+    )
+
+    with pytest.raises(ValueError, match="marginal costs are incomplete"):
+        build_operational_network(
+            buses, lines, generators, demand, service_weights
+        )

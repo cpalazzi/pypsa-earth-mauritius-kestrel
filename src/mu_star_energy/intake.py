@@ -184,11 +184,12 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
         pd.concat([named_point_assets, named_area_assets], ignore_index=True),
         geometry="geometry",
         crs=GEOGRAPHIC_CRS,
-    )
+    ).rename(columns={"asset_id": "generator_id"})
     generation_sites["capacity_mw"] = np.nan
     generation_sites["carrier"] = generation_sites["asset_type"]
+    generation_sites["marginal_cost"] = np.nan
     generation_sites["status"] = "needs_validation"
-    generation_sites["connected_bus_id"] = pd.NA
+    generation_sites["bus_id"] = pd.NA
     generation_sites["source"] = "collaborator_geometry"
     generation_sites["lon"] = generation_sites.geometry.x
     generation_sites["lat"] = generation_sites.geometry.y

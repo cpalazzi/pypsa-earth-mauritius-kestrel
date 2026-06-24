@@ -18,15 +18,15 @@ slurm-*.out
 
 # mu-star style data stages
 data_remote/
-data/incoming/**
-!data/incoming/
-!data/incoming/README.md
-data/processed/**
-!data/processed/
-!data/processed/README.md
-data/out/**
-!data/out/
-!data/out/README.md
+data/0-incoming/**
+!data/0-incoming/
+!data/0-incoming/README.md
+data/1-processed/**
+!data/1-processed/
+!data/1-processed/README.md
+data/2-out/**
+!data/2-out/
+!data/2-out/README.md
 
 # Editor
 .vscode/

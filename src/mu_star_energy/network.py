@@ -48,6 +48,10 @@ def build_operational_network(
         raise ValueError(
             "Generator capacities are incomplete; populate capacity_mw before simulation"
         )
+    if generators["marginal_cost"].isna().any():
+        raise ValueError(
+            "Generator marginal costs are incomplete; populate marginal_cost before simulation"
+        )
     if generators["bus_id"].isna().any():
         raise ValueError("Generator-to-substation assignments are incomplete")
 
@@ -145,4 +149,3 @@ def assert_fixed_capacity(network: pypsa.Network) -> None:
         frame = getattr(network, component)
         if column in frame and frame[column].fillna(False).any():
             raise ValueError(f"{component}.{column} must be false for interruption modelling")
-

@@ -8,8 +8,8 @@ energy:
   distribution_proxy:
     # Paths are relative to data_root. GridFinder is an inferred spatial proxy,
     # not a validated electrical network.
-    gridfinder_lines: incoming/energy/gridfinder/grid.gpkg
-    osm_distribution_lines: incoming/energy/osm/distribution_lines.parquet
+    gridfinder_lines: 0-incoming/energy/gridfinder/grid.gpkg
+    osm_distribution_lines: 0-incoming/energy/osm/distribution_lines.parquet
 
   operations:
     solver: highs

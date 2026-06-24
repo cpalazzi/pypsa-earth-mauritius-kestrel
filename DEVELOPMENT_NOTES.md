@@ -25,19 +25,20 @@ analysis.
 The repository follows the mu-star convention:
 
 ```text
-data/incoming  ->  data/processed  ->  data/out
+data/0-incoming  ->  data/1-processed  ->  data/2-out
 ```
 
 These are the three stages of one project data tree. Do not add parallel
 top-level `data_private`, `data_derived`, or `results` directories. All
 contents are ignored. Only READMEs, processing code and configuration are
 tracked. `MU_STAR_DATA_ROOT` can point these stages at the shared project data
-location, including a locally synchronised OneDrive folder.
+location, including a locally synchronised OneDrive folder. The numeric
+prefixes are ordering aids and do not change the stage semantics.
 
 Current raw collaborator layout:
 
 ```text
-data/incoming/energy/collaborator/
+data/0-incoming/energy/collaborator/
   power_demand/
     Power Demand.xlsx
     Daily Profile.jpg
@@ -88,21 +89,26 @@ it from OSM and CEB data.
 
 ## Notebook Separation
 
-Main notebooks:
+Primary asset-model notebooks:
 
-1. `notebooks/asset_model/00_data_intake.ipynb`
-2. `notebooks/asset_model/01_operational_network.ipynb`
+1. `00_data_intake.ipynb` runs the collaborator intake, inventories the
+   resulting layers and exposes missing register fields.
+2. `01_operational_network.ipynb` builds and reviews provisional topology,
+   distribution service weights and the readiness gate.
 
-Reference notebooks:
+PyPSA-Earth reference notebooks:
 
-1. `notebooks/pypsa_earth/00_cost_inputs_exploration.ipynb`
-2. `notebooks/pypsa_earth/01_run_analysis.ipynb`
-3. `notebooks/pypsa_earth/02_resolution_analysis.ipynb`
-4. `notebooks/pypsa_earth/03_storage_soc_comparison.ipynb`
-5. `notebooks/pypsa_earth/04_profiles_analysis.ipynb`
+1. `00_cost_inputs_exploration.ipynb` audits cost assumptions.
+2. `01_run_analysis.ipynb` describes one solved network.
+3. `02_resolution_analysis.ipynb` compares otherwise equivalent temporal
+   resolutions.
+4. `03_storage_soc_comparison.ipynb` compares configured solved scenarios.
+5. `04_profiles_analysis.ipynb` audits demand, weather and renewable
+   potentials used by a run.
 
 Notebook outputs should be cleared before commit when they contain private data
-or large embedded figures.
+or large embedded figures. The folder READMEs define prerequisites and which
+settings users may change.
 
 ## Immediate Data Work
 
