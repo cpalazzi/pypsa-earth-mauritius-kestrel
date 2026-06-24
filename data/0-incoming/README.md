@@ -22,6 +22,11 @@ The collaborator folder currently comes from the project OneDrive export. Keep
 source filenames unchanged. Record any judgement or correction in a new
 cleaned table, not in the received file.
 
+The current intake requires the demand workbook and the main Shapefile parts
+(`.shp`, `.shx`, `.dbf`, and `.prj`) for substations, transmission routes and
+both generation layers. The notebook reports the exact missing filename when
+one of these parts is absent.
+
 GridFinder and OSM line data can help estimate which areas may be served by
 each substation. They do not provide confirmed line capacities, voltages or
 other engineering details.

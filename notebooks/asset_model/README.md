@@ -30,6 +30,11 @@ demand can be changed; record these choices. Avoid estimating a power station's
 output from the size of its mapped polygon or presenting proposed line
 connections as confirmed CEB circuits.
 
+The intake notebook reloads the local package when its first cell runs. This
+prevents an open Jupyter kernel from retaining the previous `data/incoming`
+path after the folders were renamed. If the first cell reports missing data,
+its message lists the exact files and source directory being checked.
+
 For simulation, copy `generation_register_template.csv` to
 `existing_generators.csv` and populate `generator_id`, `bus_id`, `carrier`,
 `capacity_mw`, and `marginal_cost`. Supply `demand_profile.csv` either as a

@@ -13,6 +13,25 @@ import pandas as pd
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 METRIC_CRS = "EPSG:32740"
 GEOGRAPHIC_CRS = "EPSG:4326"
+REQUIRED_COLLABORATOR_FILES = (
+    "power_demand/Power Demand.xlsx",
+    "substation/Substation.shp",
+    "substation/Substation.shx",
+    "substation/Substation.dbf",
+    "substation/Substation.prj",
+    "power_transmission/PowerGrid.shp",
+    "power_transmission/PowerGrid.shx",
+    "power_transmission/PowerGrid.dbf",
+    "power_transmission/PowerGrid.prj",
+    "generation_source/GenSource1.shp",
+    "generation_source/GenSource1.shx",
+    "generation_source/GenSource1.dbf",
+    "generation_source/GenSource1.prj",
+    "generation_source/GenSource2.shp",
+    "generation_source/GenSource2.shx",
+    "generation_source/GenSource2.dbf",
+    "generation_source/GenSource2.prj",
+)
 
 
 @dataclass(frozen=True)
@@ -24,6 +43,34 @@ class PreparedAssets:
     generation_register_template: Path
     monthly_peak_demand: Path
     annual_sector_demand: Path
+
+
+def validate_collaborator_inputs(input_dir: Path) -> None:
+    """Give a clear error when a received source file is missing."""
+    input_dir = Path(input_dir)
+    missing = [
+        relative_path
+        for relative_path in REQUIRED_COLLABORATOR_FILES
+        if not (input_dir / relative_path).is_file()
+    ]
+    if not missing:
+        return
+
+    missing_list = "\n".join(f"  - {path}" for path in missing)
+    message = (
+        f"Collaborator input data are incomplete at:\n  {input_dir}\n\n"
+        f"Missing files:\n{missing_list}\n\n"
+        "Place the complete source folders under "
+        "data/0-incoming/energy/collaborator, or set MU_STAR_DATA_ROOT to a "
+        "data directory containing the same 0-incoming/energy/collaborator "
+        "structure."
+    )
+    if "/data/incoming/" in input_dir.as_posix():
+        message += (
+            "\n\nThis path uses the previous unnumbered folder name. Restart "
+            "the notebook kernel and run the first cell again."
+        )
+    raise FileNotFoundError(message)
 
 
 def _read_gdf(path: Path) -> gpd.GeoDataFrame:
@@ -139,6 +186,7 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
     """Prepare source shapefiles and the CEB workbook for modelling."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
+    validate_collaborator_inputs(input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     substations = _read_gdf(input_dir / "substation" / "Substation.shp").reset_index(drop=True)
