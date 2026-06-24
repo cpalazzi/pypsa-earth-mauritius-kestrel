@@ -20,6 +20,39 @@ Do not let this model choose new power stations, lines or storage. Future
 investment questions belong in the PyPSA-Earth comparison work or in a
 separately defined adaptation study.
 
+## Current State
+
+The repository now contains two related but separate models:
+
+1. **Existing-system asset model:** collaborator and CEB data are used to
+   describe the power stations, substations, transmission lines and demand that
+   exist in Mauritius. This is the model intended for outage and damage
+   analysis.
+2. **PyPSA-Earth comparison model:** open data are used to build and optimise a
+   possible power system. This model also produces useful hourly demand,
+   weather and renewable-energy profiles.
+
+The asset model does not currently import PyPSA-Earth files automatically.
+PyPSA-Earth data are optional supporting inputs, not the default source of
+existing assets or capacities.
+
+Current asset-model preparation produces:
+
+- 18 provisional substations;
+- 19 proposed transmission lines, with maximum line power still missing;
+- a power-station register template, with capacities, running costs and
+  connected substations still to be completed;
+- observed monthly peak demand and annual electricity use by customer group;
+- equal demand shares between substations because no OSM/GridFinder
+  distribution file has yet been added.
+
+The Python network builder can use demand that changes over time, but the
+automated workflow does not yet build and run the final model from
+`demand_profile.csv`. Existing wind and solar generators also do not yet
+receive weather-dependent availability profiles. Until that is added, every
+non-damaged generator, including wind and solar, is available up to its full
+installed capacity in every time step.
+
 ## Data Stages
 
 The repository follows the mu-star convention:
@@ -112,34 +145,192 @@ Notebook outputs should be cleared before commit when they contain private data
 or large embedded figures. The folder READMEs define prerequisites and which
 settings users may change.
 
-## Immediate Data Work
+## Relationship With PyPSA-Earth Data
 
-### Transmission and substations
+### Demand profile
 
-- Reconcile the 18 point substations against names on the 2025 CEB map.
-- Split mapped routes into individual lines between substations.
-- Assign voltage, circuit count and maximum power.
-- Add transformers where voltage conversion is represented.
-- Document lines that are normally open or not operating.
+The local PyPSA-Earth run contains:
 
-### Existing generation
+```text
+pypsa-earth/resources/mauritius-year-1/demand_profiles.csv
+```
 
-- Use the collaborator geometry for location.
-- Create a register checked against CEB sources with unit/station name, fuel or
-  technology, maximum output, dependable output, efficiency, ownership, status
-  and dates.
-- Assign every power station or generating unit to a transmission substation.
-- Record whether capacities are station totals or individual units.
-- Do not infer capacity from polygon area.
+This file contains 8,760 hourly values across eight PyPSA-Earth regions. It was
+generated from the GEGIS demand dataset using:
 
-### Demand
+- SSP2-2.6 socioeconomic assumptions;
+- a 2030 demand projection;
+- 2013 weather/calendar patterns;
+- a scale factor of 1;
+- GDP and population to divide national demand between regions.
 
-- Preserve observed monthly peaks and annual sector totals from the workbook.
-- Obtain hourly or half-hourly CEB demand if possible.
-- Select and clearly state the year represented by the model.
-- Divide demand between substations using OSM/GridFinder plus population or
-  customer evidence.
-- Keep customer-sector shares for later estimates of economic impact.
+Before any asset-model calibration, the eight columns total about 4.55 TWh for
+the year and have a combined peak of about 643 MW. These are modelled values,
+not observed CEB demand. The columns use PyPSA-Earth region IDs (`0` to `7`),
+not the asset model's substation IDs (`SUB_001`, etc.).
+
+Possible use in the asset model:
+
+1. add the eight columns to create one Mauritius-wide hourly shape;
+2. calibrate that shape to agreed CEB annual demand and peak information;
+3. divide the national profile between asset-model substations using reviewed
+   demand shares.
+
+This would be a temporary estimated profile, not observed CEB hourly demand.
+The chosen weather/demand year, scaling target and method should be saved with
+the processed file. One multiplier can match annual demand or peak demand, but
+will not generally match both. Matching both may require a documented change
+to the shape as well as scaling. Directly copying the eight PyPSA-Earth columns
+into the asset model would be incorrect because the two models use different
+locations.
+
+Preferred source order:
+
+1. observed CEB hourly or half-hourly demand;
+2. another observed Mauritius system profile with a clear year and source;
+3. the PyPSA-Earth hourly shape, scaled to CEB totals and clearly labelled as
+   estimated.
+
+### Wind and solar availability
+
+The local PyPSA-Earth run also contains hourly 2013 weather-based availability
+profiles generated from ERA5 weather data on a 0.1-degree grid:
+
+```text
+pypsa-earth/resources/mauritius-year-1/renewable_profiles/
+  profile_solar.nc
+  profile_onwind.nc
+  profile_offwind-ac.nc
+  profile_offwind-dc.nc
+```
+
+These profiles describe the share of installed capacity that weather allows at
+each hour. They can be useful for existing wind and solar assets after each
+asset has been matched to the nearest suitable profile region.
+
+Only the hourly `profile` values should be used for the existing-system model.
+The PyPSA-Earth `p_nom_max` and `potential` fields describe how much new
+capacity could potentially be built; they must not replace CEB installed
+capacity.
+
+Current local profile limitations:
+
+- solar and onshore wind contain usable hourly profiles;
+- the AC offshore-wind profile is zero in this run;
+- the DC offshore-wind profile has values but would only be relevant if an
+  existing or explicitly studied offshore asset is included;
+- the hydro profile contains no plants, so existing hydro needs CEB generation,
+  water-flow information or another documented assumption.
+
+### Other possible cross-checks
+
+PyPSA-Earth can also help check OSM transmission mapping and open power-station
+records. Differences should be reported for review; they should not
+automatically overwrite collaborator or CEB records.
+
+## Development Tasks
+
+### Priority 1: complete a runnable existing-system model
+
+- Confirm substation names, voltage levels and unique IDs.
+- Review every proposed transmission connection against CEB maps and local
+  knowledge.
+- Add maximum power for lines and transformers.
+- Complete `existing_generators.csv` with installed capacity, fuel or
+  technology, running cost, efficiency, status and connected substation.
+- Decide the model year and document whether each input represents that year.
+- Replace equal demand shares with reviewed substation shares where evidence is
+  available.
+
+Completion check: the model builds without missing-input errors and can meet
+normal demand without using the emergency unmet-demand option.
+
+### Priority 2: integrate demand over time
+
+- Add a command that reads `demand_profile.csv`, checks timestamps, units,
+  missing values and time-step length, then reports annual demand and peak.
+- Add a preparation option for observed CEB hourly or half-hourly data.
+- Add an optional PyPSA-Earth fallback that:
+  - reads the eight-region 2013 profile;
+  - creates a national hourly shape;
+  - chooses and documents whether annual demand, peak demand or both are
+    calibration targets;
+  - adjusts the shape explicitly if both annual and peak targets are matched;
+  - records the source year and scaling method;
+  - writes the standard asset-model `demand_profile.csv`.
+- Decide whether one fixed substation share is adequate or whether demand
+  shares should vary by hour or customer sector.
+- Add checks comparing the processed profile with CEB monthly peaks, annual
+  sector totals and any published load-factor information.
+
+Suggested output:
+
+```text
+data/1-processed/energy/collaborator/
+  demand_profile.csv
+  demand_profile_metadata.json
+```
+
+### Priority 3: integrate generation availability over time
+
+- Extend `build_operational_network(...)` to accept an optional table of
+  availability values between zero and one for each generator and time step.
+- Add a standard processed file, for example
+  `generator_availability.csv`, using `generator_id` columns.
+- Match each existing solar and wind generator to a PyPSA-Earth weather region
+  using its coordinates and technology.
+- Use PyPSA-Earth hourly `profile` values, but retain CEB installed capacity
+  from `existing_generators.csv`.
+- Add source and weather-year information for every assigned profile.
+- Develop separate assumptions for:
+  - hydro, preferably using CEB generation or water data;
+  - thermal planned maintenance and forced outages;
+  - storage operation, if existing storage is added.
+- Check annual capacity factors and monthly generation against CEB reports.
+
+Suggested outputs:
+
+```text
+data/1-processed/energy/collaborator/
+  generator_availability.csv
+  generator_profile_assignments.csv
+  generator_profile_metadata.json
+```
+
+### Priority 4: connect preparation, model build and outage runs
+
+- Add a command to build the final PyPSA network from cleaned buses, lines,
+  generators, demand and optional generation profiles.
+- Add a normal-operation run before applying damage.
+- Add automated outage runs from a disruption table.
+- Save the built network, summary results and unmet demand by substation and
+  time under `data/2-out/energy/`.
+- Replace the current Snakemake file-existence check with rules that prepare
+  profiles, build the network, run the normal case and run outage cases.
+- Add a third asset-model notebook that reviews demand, generation profiles and
+  the normal-operation result without mixing it with data intake.
+
+### Priority 5: validate the model
+
+- Reconcile annual electricity demand, peak demand and sector totals.
+- Compare annual generation by technology with CEB reports.
+- Compare renewable capacity factors with reported generation and independent
+  weather-based estimates.
+- Check normal-operation line loading and investigate overloaded lines.
+- Confirm that normal operation has no unmet demand except where deliberately
+  allowed for testing.
+- Test known outages or historical disruption events where evidence exists.
+- Record uncertainty ranges for line limits, demand allocation, running costs
+  and renewable profiles.
+
+### Priority 6: damage, restoration and economic impact
+
+- Agree hazard measures and damage relationships for each asset type.
+- Add time-dependent restoration rather than one fixed available fraction.
+- Represent common-cause events affecting several nearby assets.
+- Report unmet demand by substation, time and customer sector.
+- Connect customer-sector impacts to value-of-lost-load or wider economic
+  impact methods, with assumptions visible.
 
 ## Damage And Interruption Flow
 

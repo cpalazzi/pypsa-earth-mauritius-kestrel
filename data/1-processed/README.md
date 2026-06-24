@@ -40,6 +40,12 @@ Column meanings:
 - `marginal_cost`: cost of producing one additional MWh;
 - `s_nom_mva`: maximum apparent power carried by a line.
 
+The model-building Python function accepts these time-varying demand values.
+The automated workflow currently checks that the file exists but does not yet
+read it and launch outage calculations. Regular half-hourly, hourly and
+three-hourly profiles are supported; the model sets the time-step duration from
+the timestamp spacing.
+
 Copy `generation_register_template.csv` to `existing_generators.csv`, then
 review and complete it rather than editing generated Parquet outputs by hand.
 Keep the same generator IDs. Include the source and a short note for any value

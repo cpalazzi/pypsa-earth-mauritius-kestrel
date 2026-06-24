@@ -22,18 +22,24 @@ network for interruption analysis.
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
 
-## User responsibility
+## User instructions
 
-The user must reconcile generated records against CEB reports and collaborator
-knowledge. You may change the distance used to match a route to a substation
-and the method used to share demand. Record these choices. Do not estimate a
-power station's output from the size of its mapped polygon, or present proposed
-line connections as confirmed CEB circuits.
+Review the generated records against CEB reports and collaborator knowledge.
+The distance used to match a route to a substation and the method used to share
+demand can be changed; record these choices. Avoid estimating a power station's
+output from the size of its mapped polygon or presenting proposed line
+connections as confirmed CEB circuits.
 
 For simulation, copy `generation_register_template.csv` to
 `existing_generators.csv` and populate `generator_id`, `bus_id`, `carrier`,
 `capacity_mw`, and `marginal_cost`. Supply `demand_profile.csv` either as a
 system `demand_mw` series or as one complete column per substation.
+
+The present workflow checks for `demand_profile.csv` but does not yet read it
+and run the final outage calculation automatically. The network-building
+function can use a time-varying demand table when called from Python. It
+supports regular half-hourly, hourly and three-hourly profiles and sets their
+duration from the timestamp spacing.
 
 The column names are kept because the code needs them:
 

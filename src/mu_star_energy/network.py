@@ -14,6 +14,20 @@ def _require_columns(frame: pd.DataFrame, columns: set[str], label: str) -> None
         raise ValueError(f"{label} missing columns: {sorted(missing)}")
 
 
+def _time_step_hours(index: pd.Index) -> float:
+    if not isinstance(index, pd.DatetimeIndex):
+        raise ValueError("Demand profile index must contain dates and times")
+    if index.has_duplicates or not index.is_monotonic_increasing:
+        raise ValueError("Demand profile dates and times must be unique and ordered")
+    if len(index) < 2:
+        return 1.0
+
+    intervals = index.to_series().diff().dropna().dt.total_seconds() / 3600
+    if (intervals <= 0).any() or not np.allclose(intervals, intervals.iloc[0]):
+        raise ValueError("Demand profile must use one regular time-step length")
+    return float(intervals.iloc[0])
+
+
 def build_operational_network(
     buses: gpd.GeoDataFrame,
     lines: gpd.GeoDataFrame,
@@ -24,7 +38,7 @@ def build_operational_network(
     value_of_lost_load: float = 10_000,
     line_reactance_ohm_per_km: float = 0.4,
 ) -> pypsa.Network:
-    """Build an hourly supply model using only existing assets.
+    """Build a time-series supply model using only existing assets.
 
     The model cannot build extra capacity. Missing line limits or power-station
     capacities cause a clear error rather than being estimated by the model.
@@ -43,10 +57,13 @@ def build_operational_network(
     _require_columns(service_weights, {"bus_id", "service_weight"}, "service_weights")
 
     if lines["s_nom_mva"].isna().any():
-        raise ValueError("Line ratings are incomplete; populate s_nom_mva before simulation")
+        raise ValueError(
+            "Maximum line power is incomplete; populate s_nom_mva before simulation"
+        )
     if generators["capacity_mw"].isna().any():
         raise ValueError(
-            "Generator capacities are incomplete; populate capacity_mw before simulation"
+            "Power-station maximum output is incomplete; populate capacity_mw "
+            "before simulation"
         )
     if generators["marginal_cost"].isna().any():
         raise ValueError(
@@ -54,10 +71,18 @@ def build_operational_network(
             "before simulation"
         )
     if generators["bus_id"].isna().any():
-        raise ValueError("Generator-to-substation assignments are incomplete")
+        raise ValueError("Power-station substation assignments are incomplete")
+    if demand_profile.empty:
+        raise ValueError("Demand profile is empty")
+    if demand_profile.isna().any().any():
+        raise ValueError("Demand profile contains missing values")
+    if (demand_profile.select_dtypes(include="number") < 0).any().any():
+        raise ValueError("Demand profile cannot contain negative demand")
 
     network = pypsa.Network()
-    network.set_snapshots(pd.DatetimeIndex(demand_profile.index))
+    time_step_hours = _time_step_hours(demand_profile.index)
+    network.set_snapshots(demand_profile.index)
+    network.snapshot_weightings.loc[:, :] = time_step_hours
 
     bus_frame = buses.to_crs("EPSG:4326").set_index("bus_id")
     for bus_id, row in bus_frame.iterrows():
@@ -141,7 +166,7 @@ def build_operational_network(
 
 
 def assert_fixed_capacity(network: pypsa.Network) -> None:
-    """Reject accidental capacity-expansion settings."""
+    """Reject settings that let the model build extra assets."""
     checks = (
         ("generators", "p_nom_extendable"),
         ("lines", "s_nom_extendable"),

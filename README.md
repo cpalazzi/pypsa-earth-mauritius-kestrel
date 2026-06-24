@@ -169,7 +169,7 @@ register template. The second shows the proposed connections between
 substations, estimates how demand might be shared between substations, and
 lists the information still needed before running the model.
 
-Before interruption simulation, the user must supply or validate:
+Information to prepare before interruption simulation:
 
 - a unique ID, name and voltage for each substation and line;
 - the maximum power each line and transformer can carry;
@@ -194,6 +194,39 @@ shared between substations using `service_weights.csv`, or one complete column
 per `bus_id`. Its first column must contain readable dates and times. A service
 weight is simply the share of total demand assigned to a substation; all shares
 must add to one.
+
+### Current demand-profile support
+
+The model code can already use demand that changes over time. The function
+`build_operational_network(...)` accepts a table whose rows are model times and
+whose values are demand in MW.
+
+It supports two forms:
+
+1. **One Mauritius-wide profile:** a `demand_mw` column. The same fixed demand
+   shares from `service_weights.csv` are used at every time step to divide this
+   total between substations.
+2. **One profile per substation:** a column for every `bus_id`. These values are
+   used directly and `service_weights.csv` is not used to divide the demand.
+
+The current collaborator workbook provides monthly peak demand and annual
+electricity use by customer group. It does not provide the hourly or
+half-hourly series required for `demand_profile.csv`. The image
+`Daily Profile.jpg` is also not read automatically.
+
+The network builder reads the spacing between timestamps and applies the
+correct duration to energy and cost totals. Regular half-hourly, hourly and
+three-hourly profiles are therefore supported. Irregularly spaced timestamps
+are rejected because their duration would be ambiguous.
+
+The remaining implementation gap is file handling: the automated workflow
+checks that `demand_profile.csv` exists, but it does not yet read that file,
+build the final PyPSA network and run outage cases. At present, a Python script
+or notebook must read the CSV into a pandas table, set its date/time column as
+the index and pass it to `build_operational_network(...)`.
+
+An hourly profile remains the simplest starting point, but it is not a
+technical requirement.
 
 ### 4. Run outage cases
 
