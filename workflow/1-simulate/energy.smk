@@ -6,7 +6,7 @@ power-station output, connected substations and demand over time are complete.
 
 rule validate_energy_model_inputs:
     input:
-        topology=f"{TOPOLOGY_DIR}/topology_report.json",
+        lines=f"{PROCESSED_ENERGY}/existing_lines.csv",
         generators=f"{PROCESSED_ENERGY}/existing_generators.csv",
         demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
         service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",

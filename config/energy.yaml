@@ -1,10 +1,6 @@
 data_root: data
 
 energy:
-  topology:
-    default_voltage_kv: 66
-    snap_tolerance_m: 2500
-
   distribution_proxy:
     # Paths are relative to data_root. GridFinder estimates possible line
     # routes; it is not confirmed engineering data.

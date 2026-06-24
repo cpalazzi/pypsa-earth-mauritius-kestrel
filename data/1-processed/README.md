@@ -15,17 +15,14 @@ data/1-processed/energy/
     generation_register_template.csv
     monthly_peak_demand_mw.csv
     annual_sector_demand_gwh.csv
-  network/
-    buses.parquet
-    lines.parquet
-    topology_report.json
 ```
 
 Files required before the model can calculate electricity supply:
 
+- `existing_lines.csv`, with `line_id`, `bus0`, `bus1`, `v_nom_kv`,
+  `length_km`, and `s_nom_mva`;
 - `existing_generators.csv` with populated `generator_id`, `bus_id`, `carrier`,
   `capacity_mw`, and `marginal_cost`;
-- the maximum power for each line in the `s_nom_mva` field;
 - `demand_profile.csv`, with dates and times, containing either one system-wide
   `demand_mw` column or one complete demand column per substation;
 - `service_weights.csv`, giving every substation a share of total demand. The
@@ -50,3 +47,9 @@ Copy `generation_register_template.csv` to `existing_generators.csv`, then
 review and complete it rather than editing generated Parquet outputs by hand.
 Keep the same generator IDs. Include the source and a short note for any value
 that you add or correct manually.
+
+`transmission_routes.parquet` preserves the supplied vector line geometry for
+mapping and comparison. It is not converted into `existing_lines.csv` because
+the source attributes do not identify electrical endpoint substations or line
+ratings. Add `existing_lines.csv` when those data are available from an agreed
+source.

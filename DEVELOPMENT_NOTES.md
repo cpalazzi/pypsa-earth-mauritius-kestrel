@@ -39,7 +39,7 @@ existing assets or capacities.
 Current asset-model preparation produces:
 
 - 18 provisional substations;
-- 19 proposed transmission lines, with maximum line power still missing;
+- six received vector transmission-route records;
 - a power-station register template, with capacities, running costs and
   connected substations still to be completed;
 - observed monthly peak demand and annual electricity use by customer group;
@@ -129,8 +129,20 @@ Primary asset-model notebooks:
 
 1. `00_data_intake.ipynb` reads the collaborator files, lists the records found
    and shows missing power-station information.
-2. `01_operational_network.ipynb` proposes connections between substations,
-   estimates how demand is shared and lists missing inputs.
+2. `01_operational_network.ipynb` displays the received routes and substations,
+   estimates how demand is shared and lists missing model inputs.
+
+The received line geometry does not identify the two endpoint substations for
+each electrical circuit. The repository therefore does not convert mapped
+routes into model connections. `existing_lines.csv` will be the model input
+once endpoint and engineering data are available from an agreed source.
+
+The current `PowerGrid.shp` contains six route records, expanded into 27 line
+parts. Only one record has a route name and voltage in its attributes. It has
+no fields identifying `bus0`, `bus1`, circuit count, thermal rating or
+operational status. `Substation.shp` contains 18 points, all labelled only
+`Substation`. The map is therefore useful evidence, but it is not yet a
+complete electrical network register.
 
 PyPSA-Earth reference notebooks:
 
@@ -233,9 +245,9 @@ automatically overwrite collaborator or CEB records.
 ### Priority 1: complete a runnable existing-system model
 
 - Confirm substation names, voltage levels and unique IDs.
-- Review every proposed transmission connection against CEB maps and local
-  knowledge.
-- Add maximum power for lines and transformers.
+- Complete `existing_lines.csv` from CEB records, identifying the endpoint
+  substations for each line or transformer.
+- Add voltage, circuit count and maximum power for lines and transformers.
 - Complete `existing_generators.csv` with installed capacity, fuel or
   technology, running cost, efficiency, status and connected substation.
 - Decide the model year and document whether each input represents that year.

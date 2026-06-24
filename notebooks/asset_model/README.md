@@ -18,17 +18,17 @@ network for interruption analysis.
    - creates a power-station register and identifies missing maximum output,
      running cost and connected-substation information.
 2. `01_operational_network.ipynb`
-   - proposes which substations are connected by each mapped route;
+   - displays the received transmission route geometry;
+   - does not derive electrical connections from route proximity;
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
 
 ## User instructions
 
 Review the generated records against CEB reports and collaborator knowledge.
-The distance used to match a route to a substation and the method used to share
-demand can be changed; record these choices. Avoid estimating a power station's
-output from the size of its mapped polygon or presenting proposed line
-connections as confirmed CEB circuits.
+The method used to share demand can be changed; record this choice. Avoid
+estimating a power station's output from the size of its mapped polygon or
+treating visually adjacent routes and substations as an electrical connection.
 
 The intake notebook reloads the local package when its first cell runs. This
 prevents an open Jupyter kernel from retaining the previous `data/incoming`
@@ -39,6 +39,10 @@ For simulation, copy `generation_register_template.csv` to
 `existing_generators.csv` and populate `generator_id`, `bus_id`, `carrier`,
 `capacity_mw`, and `marginal_cost`. Supply `demand_profile.csv` either as a
 system `demand_mw` series or as one complete column per substation.
+
+Add `existing_lines.csv` when an agreed source provides each line's endpoint
+substations, voltage, length and maximum power. The repository does not create
+this table from the mapped route geometry.
 
 The present workflow checks for `demand_profile.csv` but does not yet read it
 and run the final outage calculation automatically. The network-building

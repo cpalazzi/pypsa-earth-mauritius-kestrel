@@ -46,7 +46,14 @@ def build_operational_network(
     _require_columns(buses, {"bus_id", "geometry"}, "buses")
     _require_columns(
         lines,
-        {"line_id", "bus0", "bus1", "v_nom_kv", "length_km", "s_nom_mva"},
+        {
+            "line_id",
+            "bus0",
+            "bus1",
+            "v_nom_kv",
+            "length_km",
+            "s_nom_mva",
+        },
         "lines",
     )
     _require_columns(

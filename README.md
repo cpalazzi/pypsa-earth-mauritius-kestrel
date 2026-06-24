@@ -138,11 +138,10 @@ folders:
 export MU_STAR_DATA_ROOT="/path/to/shared/mu-star-data"
 ```
 
-### 2. Prepare the asset tables and network connections
+### 2. Prepare the source asset tables
 
 ```bash
 .venv/bin/python -m mu_star_energy.cli prepare-assets
-.venv/bin/python -m mu_star_energy.cli build-topology
 ```
 
 Equivalent Snakemake target:
@@ -151,7 +150,7 @@ Equivalent Snakemake target:
 .venv/bin/snakemake \
   --snakefile workflow/Snakefile \
   --cores 1 \
-  data/1-processed/energy/network/topology_report.json
+  data/1-processed/energy/collaborator/transmission_routes.parquet
 ```
 
 These commands may overwrite generated files under `data/1-processed`.
@@ -165,14 +164,24 @@ Open the notebooks in this order:
 2. `notebooks/asset_model/01_operational_network.ipynb`
 
 The first checks which source records are available and creates a power-station
-register template. The second shows the proposed connections between
-substations, estimates how demand might be shared between substations, and
-lists the information still needed before running the model.
+register template. The second displays the transmission routes and substations
+as supplied. It does not infer which substations are connected.
+
+`PowerGrid.shp` contains vector line geometry, not just an image. However, it
+does not provide a complete electrical line register: most routes are unnamed,
+and the attributes do not identify endpoint substations, circuit counts,
+ratings or operating status. The separate `network_map_2025.png` is a reference
+image and is not used to construct topology.
+
+Add `existing_lines.csv` only when those electrical connections are available
+from CEB records or another agreed source. The operational model does not
+create connections from route proximity.
 
 Information to prepare before interruption simulation:
 
-- a unique ID, name and voltage for each substation and line;
-- the maximum power each line and transformer can carry;
+- a unique ID, name and voltage for each substation;
+- `existing_lines.csv`, with endpoint substations, voltage, length, circuit
+  count and maximum power for each transmission line or transformer;
 - `existing_generators.csv`, based on the generated register template, with
   `generator_id`, `bus_id`, `carrier`, `capacity_mw`, and `marginal_cost`
   populated and supported by CEB or other technical sources;
@@ -245,8 +254,6 @@ The following settings are expected to change as better information becomes
 available:
 
 - the data root through `MU_STAR_DATA_ROOT`;
-- the matching distance used to decide whether a mapped line passes through a
-  substation, and the temporary default voltage, in `config/energy.yaml`;
 - the optional OSM and GridFinder data used to estimate each substation's share
   of demand;
 - the calculation software, the assumed cost of unmet demand, the outage cases

@@ -1,4 +1,4 @@
-"""Prepare collaborator asset tables and propose substation connections."""
+"""Prepare collaborator asset tables without deriving network connections."""
 
 rule prepare_energy_assets:
     input:
@@ -17,25 +17,4 @@ rule prepare_energy_assets:
         .venv/bin/python -m mu_star_energy.cli prepare-assets \
           --input-dir {INCOMING_ENERGY} \
           --output-dir {PROCESSED_ENERGY}
-        """
-
-
-rule build_energy_topology:
-    input:
-        substations=rules.prepare_energy_assets.output.substations,
-        routes=rules.prepare_energy_assets.output.routes,
-    output:
-        buses=f"{TOPOLOGY_DIR}/buses.parquet",
-        lines=f"{TOPOLOGY_DIR}/lines.parquet",
-        report=f"{TOPOLOGY_DIR}/topology_report.json",
-    params:
-        snap_tolerance=config["energy"]["topology"]["snap_tolerance_m"],
-        voltage=config["energy"]["topology"]["default_voltage_kv"],
-    shell:
-        """
-        .venv/bin/python -m mu_star_energy.cli build-topology \
-          --processed-dir {PROCESSED_ENERGY} \
-          --output-dir {TOPOLOGY_DIR} \
-          --snap-tolerance-m {params.snap_tolerance} \
-          --default-voltage-kv {params.voltage}
         """
