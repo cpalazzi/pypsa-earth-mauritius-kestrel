@@ -1,4 +1,4 @@
-"""Fixed-asset interruption simulation interface for mu-star."""
+"""Calculate electricity supply when existing assets are unavailable."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class SimulationResult:
 def apply_disruptions(
     network: pypsa.Network, disruptions: pd.DataFrame | list[dict[str, object]]
 ) -> pypsa.Network:
-    """Return a copied network with component availability reductions applied."""
+    """Copy the network and reduce the usable share of selected assets."""
     disrupted = network.copy()
     frame = pd.DataFrame(disruptions)
     if frame.empty:
@@ -62,7 +62,7 @@ def apply_disruptions(
 
 
 class EnergyModel:
-    """Operational electricity model exposing the mu-star simulation interface."""
+    """Calculate electricity supply using only the existing assets."""
 
     def __init__(self, solver_name: str = "highs") -> None:
         self.solver_name = solver_name
@@ -76,7 +76,10 @@ class EnergyModel:
         disrupted = apply_disruptions(network, disruptions)
         status, condition = disrupted.optimize(solver_name=self.solver_name)
         if status != "ok":
-            raise RuntimeError(f"Dispatch failed: status={status}, condition={condition}")
+            raise RuntimeError(
+                "Electricity supply calculation failed: "
+                f"status={status}, condition={condition}"
+            )
 
         weights = disrupted.snapshot_weightings.generators.reindex(
             disrupted.snapshots

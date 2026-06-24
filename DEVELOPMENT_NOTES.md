@@ -12,13 +12,13 @@ The standard model interface is:
 EnergyModel.simulate(network, disruptions)
 ```
 
-- `network`: fixed existing assets, demand and operational parameters;
-- `disruptions`: component, asset identifier and available fraction;
-- output: service and cost metrics, especially unserved energy.
+- `network`: existing assets, demand and settings for how they operate;
+- `disruptions`: asset type, asset ID and the share that remains usable;
+- output: electricity supplied, electricity not supplied and cost.
 
-Do not add greenfield capacity optimisation to this path. Investment scenarios
-belong in the PyPSA-Earth reference track or a separately defined adaptation
-analysis.
+Do not let this model choose new power stations, lines or storage. Future
+investment questions belong in the PyPSA-Earth comparison work or in a
+separately defined adaptation study.
 
 ## Data Stages
 
@@ -33,7 +33,7 @@ top-level `data_private`, `data_derived`, or `results` directories. All
 contents are ignored. Only READMEs, processing code and configuration are
 tracked. `MU_STAR_DATA_ROOT` can point these stages at the shared project data
 location, including a locally synchronised OneDrive folder. The numeric
-prefixes are ordering aids and do not change the stage semantics.
+prefixes are ordering aids and do not change what each folder is for.
 
 Current raw collaborator layout:
 
@@ -53,8 +53,8 @@ data/0-incoming/energy/collaborator/
     Details about capacity and generation.url
 ```
 
-Keep source files unchanged. Manual interpretation belongs in a processed
-register with provenance columns.
+Keep source files unchanged. Put any manual judgement in a cleaned register,
+along with the source and a short explanation.
 
 ## Model Boundary
 
@@ -62,49 +62,51 @@ register with provenance columns.
 
 PyPSA represents:
 
-- transmission substations as buses;
-- transmission circuits/transformers as fixed-capacity branches;
+- each transmission substation as a model connection point (called a `Bus` in
+  PyPSA);
+- each transmission circuit or transformer as a connection with a fixed
+  maximum power;
 - existing power stations as fixed-capacity generators;
-- calibrated nodal demand;
-- high-cost load-shedding generators to quantify unserved energy.
+- demand assigned to each substation;
+- an emergency high-cost supply option used only to measure electricity demand
+  that cannot be served.
 
-The model performs operational redispatch only. Every extendable-capacity flag
-must remain false.
+The model only chooses how existing power stations operate in each time step.
+Every PyPSA setting that allows new capacity must remain false.
 
-### Distribution proxy
+### Estimating the location of demand
 
 The actual distribution system is not available. Use:
 
 - OSM mapped distribution infrastructure where present;
-- GridFinder inferred lines to fill spatial gaps;
+- GridFinder estimated lines for areas where mapping is missing;
 - population, customer or economic data when available.
 
-The proxy allocates demand and customer impacts to substations. Do not insert
-unvalidated GridFinder lines into the PyPSA power-flow network or assign them
-electrical ratings.
+These data help divide demand and customer impacts between substations. Do not
+insert unconfirmed GridFinder lines into the electrical network calculation or
+give them assumed capacities.
 
-GridFinder predicts network routes from night-time lights and road-network
-costs. Treat it as modelled evidence and retain a `source` field distinguishing
-it from OSM and CEB data.
+GridFinder estimates possible routes from night-time lights and roads. Keep a
+`source` column so users can distinguish GridFinder estimates from OSM mapping
+and CEB data.
 
 ## Notebook Separation
 
 Primary asset-model notebooks:
 
-1. `00_data_intake.ipynb` runs the collaborator intake, inventories the
-   resulting layers and exposes missing register fields.
-2. `01_operational_network.ipynb` builds and reviews provisional topology,
-   distribution service weights and the readiness gate.
+1. `00_data_intake.ipynb` reads the collaborator files, lists the records found
+   and shows missing power-station information.
+2. `01_operational_network.ipynb` proposes connections between substations,
+   estimates how demand is shared and lists missing inputs.
 
 PyPSA-Earth reference notebooks:
 
-1. `00_cost_inputs_exploration.ipynb` audits cost assumptions.
-2. `01_run_analysis.ipynb` describes one solved network.
-3. `02_resolution_analysis.ipynb` compares otherwise equivalent temporal
-   resolutions.
-4. `03_storage_soc_comparison.ipynb` compares configured solved scenarios.
-5. `04_profiles_analysis.ipynb` audits demand, weather and renewable
-   potentials used by a run.
+1. `00_cost_inputs_exploration.ipynb` compares cost sources and years.
+2. `01_run_analysis.ipynb` describes the results from one model run.
+3. `02_resolution_analysis.ipynb` compares different time-step lengths.
+4. `03_storage_soc_comparison.ipynb` compares selected model runs.
+5. `04_profiles_analysis.ipynb` reviews demand, weather and the maximum
+   renewable capacity allowed by land and sea assumptions.
 
 Notebook outputs should be cleared before commit when they contain private data
 or large embedded figures. The folder READMEs define prerequisites and which
@@ -115,17 +117,18 @@ settings users may change.
 ### Transmission and substations
 
 - Reconcile the 18 point substations against names on the 2025 CEB map.
-- Split the route geometry into individual branches between substations.
-- Assign voltage, circuit count and thermal rating.
+- Split mapped routes into individual lines between substations.
+- Assign voltage, circuit count and maximum power.
 - Add transformers where voltage conversion is represented.
-- Document normally-open or non-operational branches.
+- Document lines that are normally open or not operating.
 
 ### Existing generation
 
 - Use the collaborator geometry for location.
-- Create a CEB-reconciled register with unit/station name, carrier, capacity,
-  dependable capacity, efficiency, ownership, status and dates.
-- Assign every generator to a transmission substation.
+- Create a register checked against CEB sources with unit/station name, fuel or
+  technology, maximum output, dependable output, efficiency, ownership, status
+  and dates.
+- Assign every power station or generating unit to a transmission substation.
 - Record whether capacities are station totals or individual units.
 - Do not infer capacity from polygon area.
 
@@ -133,10 +136,10 @@ settings users may change.
 
 - Preserve observed monthly peaks and annual sector totals from the workbook.
 - Obtain hourly or half-hourly CEB demand if possible.
-- Select a clearly dated baseline year.
-- Allocate demand to substation service areas using OSM/GridFinder plus
-  population/customer evidence.
-- Preserve sector shares for later economic-impact attribution.
+- Select and clearly state the year represented by the model.
+- Divide demand between substations using OSM/GridFinder plus population or
+  customer evidence.
+- Keep customer-sector shares for later estimates of economic impact.
 
 ## Damage And Interruption Flow
 
@@ -144,31 +147,31 @@ The intended mu-star chain is:
 
 ```text
 hazard intensity
-  -> asset damage curve
-  -> damage fraction
-  -> availability and restoration duration
-  -> PyPSA redispatch
-  -> unserved energy by bus, time and sector
-  -> value-of-lost-load / economic impact
+  -> relationship between hazard and damage
+  -> estimated share of the asset damaged
+  -> usable share of the asset and repair time
+  -> calculate supply using the remaining assets
+  -> electricity demand not supplied by substation, time and sector
+  -> economic impact, including the assumed cost of unmet demand
 ```
 
 `config/damage_curves/` is intentionally empty pending approved curves. The
 initial implementation converts `damage_fraction` to
-`available_fraction = 1 - damage_fraction`; restoration modelling can later
+`available_fraction = 1 - damage_fraction`; later work on repair time can
 replace this simple relationship.
 
 ## PyPSA-Earth Reference Workflow
 
-`pypsa-earth/` remains useful for:
+`pypsa-earth/` remains useful for comparison with:
 
 - OSM transmission extraction;
 - renewable weather profiles;
 - generic demand comparison;
 - open-data powerplant cross-checks.
 
-The existing annual run is `mauritius-year-1`, with ARC instructions retained
-under `arc/`. Its resources, networks and results stay under `pypsa-earth/`;
-they are validation/reference material, not the primary mu-star model.
+The existing annual run is `mauritius-year-1`, with ARC instructions under
+`arc/`. Its input files, model files and results stay under `pypsa-earth/`.
+They provide a comparison and are not the primary existing-system model.
 
 At the start of an ARC session, create the SSH control socket in a normal
 terminal:

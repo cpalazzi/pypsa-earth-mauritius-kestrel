@@ -121,7 +121,7 @@ def test_operational_network_rejects_missing_generator_marginal_cost():
         {"bus_id": ["A", "B"], "service_weight": [0.5, 0.5]}
     )
 
-    with pytest.raises(ValueError, match="marginal costs are incomplete"):
+    with pytest.raises(ValueError, match="running costs are incomplete"):
         build_operational_network(
             buses, lines, generators, demand, service_weights
         )

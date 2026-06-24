@@ -1,18 +1,18 @@
 # Damage-curve configuration
 
-The energy model consumes asset availability, while the wider mu-star workflow
-calculates hazard intensity and physical damage.
+The energy model needs to know how much of each asset remains usable after an
+event. Other parts of mu-star calculate the hazard at each asset and the
+resulting physical damage.
 
-`asset_map.csv` maps energy asset types to damage curves. `curves.csv` stores
-curve points. Both files are intentionally empty until project-approved curves
-and units are available.
+`asset_map.csv` links each type of energy asset to an agreed damage
+relationship. `curves.csv` stores the points in those relationships. Both files
+are intentionally empty until the project agrees the sources, units and values.
 
 The intended conversion is:
 
 ```text
-hazard intensity
-  -> damage fraction from curve
-  -> available fraction / outage duration
-  -> fixed-asset PyPSA interruption simulation
+hazard at the asset
+  -> estimated physical damage
+  -> usable share of the asset and repair time
+  -> electricity supply calculation during the outage
 ```
-

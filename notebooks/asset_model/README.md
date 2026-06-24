@@ -13,23 +13,31 @@ network for interruption analysis.
 ## Run order
 
 1. `00_data_intake.ipynb`
-   - reads the demand workbook and geospatial source layers;
-   - writes reproducible tables to `data/1-processed/energy/collaborator`;
-   - creates a register template and identifies missing capacities, marginal
-     costs and bus assignments.
+   - reads the demand workbook and mapped source files;
+   - writes cleaned tables to `data/1-processed/energy/collaborator`;
+   - creates a power-station register and identifies missing maximum output,
+     running cost and connected-substation information.
 2. `01_operational_network.ipynb`
-   - converts route geometry and substation points into a provisional graph;
-   - optionally derives service weights from OSM/GridFinder;
-   - reports whether ratings, generation and demand are ready for simulation.
+   - proposes which substations are connected by each mapped route;
+   - can use OSM and GridFinder to estimate each substation's share of demand;
+   - reports whether line capacities, generation data and demand are ready.
 
 ## User responsibility
 
 The user must reconcile generated records against CEB reports and collaborator
-knowledge. Topology tolerances and service-weight methods may be changed, but
-the resulting assumptions must be documented. Do not infer capacity from
-geometry or treat provisional routes as validated circuits.
+knowledge. You may change the distance used to match a route to a substation
+and the method used to share demand. Record these choices. Do not estimate a
+power station's output from the size of its mapped polygon, or present proposed
+line connections as confirmed CEB circuits.
 
 For simulation, copy `generation_register_template.csv` to
 `existing_generators.csv` and populate `generator_id`, `bus_id`, `carrier`,
 `capacity_mw`, and `marginal_cost`. Supply `demand_profile.csv` either as a
-system `demand_mw` series or as complete bus columns.
+system `demand_mw` series or as one complete column per substation.
+
+The column names are kept because the code needs them:
+
+- `bus_id` means the connected substation;
+- `carrier` means the fuel or technology;
+- `capacity_mw` means maximum output;
+- `marginal_cost` means the cost of producing one additional MWh.

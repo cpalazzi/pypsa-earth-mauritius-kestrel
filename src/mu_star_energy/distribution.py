@@ -1,8 +1,8 @@
-"""Distribution-network proxy utilities.
+"""Estimate how total demand may be shared between substations.
 
 GridFinder and OSM distribution lines are used only to estimate service areas
-and demand allocation. They are not assumed to contain validated electrical
-parameters and are not inserted into the PyPSA power-flow network.
+and the share of demand served by each substation. They are not confirmed
+engineering data and are not added to the electrical network calculation.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ def build_service_weights(
     gridfinder_lines: gpd.GeoDataFrame | None = None,
     osm_distribution_lines: gpd.GeoDataFrame | None = None,
 ) -> pd.DataFrame:
-    """Allocate inferred distribution-line length to its nearest substation."""
+    """Use mapped line length to estimate each substation's share of demand."""
     buses = substations.to_crs(METRIC_CRS)
     sources: list[gpd.GeoDataFrame] = []
     for name, layer in (
@@ -83,4 +83,3 @@ def build_service_weights(
             "method": "distribution_line_length_proxy",
         }
     )
-

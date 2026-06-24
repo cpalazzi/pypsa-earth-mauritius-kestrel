@@ -6,8 +6,8 @@ energy:
     snap_tolerance_m: 2500
 
   distribution_proxy:
-    # Paths are relative to data_root. GridFinder is an inferred spatial proxy,
-    # not a validated electrical network.
+    # Paths are relative to data_root. GridFinder estimates possible line
+    # routes; it is not confirmed engineering data.
     gridfinder_lines: 0-incoming/energy/gridfinder/grid.gpkg
     osm_distribution_lines: 0-incoming/energy/osm/distribution_lines.parquet
 

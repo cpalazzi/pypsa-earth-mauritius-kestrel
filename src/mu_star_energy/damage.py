@@ -1,4 +1,4 @@
-"""Translate physical damage outputs into model availability events."""
+"""Convert physical damage estimates into the usable share of each asset."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import pandas as pd
 
 
 def damage_to_disruptions(asset_damage: pd.DataFrame) -> pd.DataFrame:
-    """Convert damage fractions into the standard simulation input schema.
+    """Convert estimated damage into the columns expected by the energy model.
 
-    This is deliberately simple. Future restoration modelling can replace the
-    direct `1 - damage_fraction` relationship with hazard- and asset-specific
-    functionality and repair-duration models.
+    This first version assumes that 30% damage leaves 70% of an asset usable.
+    Later work can use different relationships for each hazard and asset type
+    and can include repair time.
     """
     required = {"component", "asset_id", "damage_fraction"}
     missing = required - set(asset_damage.columns)
@@ -22,4 +22,3 @@ def damage_to_disruptions(asset_damage: pd.DataFrame) -> pd.DataFrame:
     disruptions = asset_damage[["component", "asset_id"]].copy()
     disruptions["available_fraction"] = 1 - asset_damage["damage_fraction"]
     return disruptions
-

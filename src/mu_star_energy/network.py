@@ -1,4 +1,4 @@
-"""Build a fixed-capacity operational PyPSA network."""
+"""Build a PyPSA model of the existing electricity system."""
 
 from __future__ import annotations
 
@@ -24,10 +24,10 @@ def build_operational_network(
     value_of_lost_load: float = 10_000,
     line_reactance_ohm_per_km: float = 0.4,
 ) -> pypsa.Network:
-    """Build a fixed-asset dispatch model with explicit load shedding.
+    """Build an hourly supply model using only existing assets.
 
-    No component is extendable. Missing line ratings or generator capacities
-    are treated as validation errors rather than silently optimised.
+    The model cannot build extra capacity. Missing line limits or power-station
+    capacities cause a clear error rather than being estimated by the model.
     """
     _require_columns(buses, {"bus_id", "geometry"}, "buses")
     _require_columns(
@@ -50,7 +50,8 @@ def build_operational_network(
         )
     if generators["marginal_cost"].isna().any():
         raise ValueError(
-            "Generator marginal costs are incomplete; populate marginal_cost before simulation"
+            "Power-station running costs are incomplete; populate marginal_cost "
+            "before simulation"
         )
     if generators["bus_id"].isna().any():
         raise ValueError("Generator-to-substation assignments are incomplete")
@@ -101,7 +102,9 @@ def build_operational_network(
         bus_frame.index
     )
     if weights.isna().any() or not np.isclose(weights.sum(), 1.0):
-        raise ValueError("Service weights must cover all buses and sum to one")
+        raise ValueError(
+            "Demand shares must cover every substation (bus_id) and add to one"
+        )
 
     if "demand_mw" in demand_profile.columns:
         total_demand = demand_profile["demand_mw"]
@@ -112,7 +115,8 @@ def build_operational_network(
         demand_by_bus = demand_profile.reindex(columns=bus_frame.index)
         if demand_by_bus.isna().any().any():
             raise ValueError(
-                "Demand profile must contain demand_mw or one complete column per bus"
+                "Demand profile must contain demand_mw or one complete column "
+                "per substation (bus_id)"
             )
 
     if "load_shedding" not in network.carriers.index:

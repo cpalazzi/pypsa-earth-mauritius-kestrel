@@ -5,71 +5,75 @@ This repository develops the Mauritius electricity component model for the
 Its primary purpose is to measure service interruption when existing energy
 assets are damaged or unavailable.
 
-The core model is **not a capacity-expansion model**. It represents the
-currently installed generation, transmission lines, substations and calibrated
-demand in PyPSA, fixes their capacities, then redispatches the system under
-asset outages. Results include unserved energy, served demand and operating
-cost.
+The main model represents the power stations, transmission lines, substations
+and electricity demand that already exist. It does not decide which new assets
+Mauritius should build. For each hour, it works out which available power
+stations can meet demand after one or more assets have been damaged or taken
+out of service. Results include electricity demand that could not be supplied,
+the share of demand served and operating cost.
 
 ## Choose The Modelling Track
 
-### 1. Asset-level interruption model
+### 1. Existing-system interruption model
 
 Use this track to represent the existing Mauritius electricity system and test
-asset outages. This is the primary project workflow. The code is under
+what happens when assets are unavailable. This is the primary project work.
+The code is under
 `src/mu_star_energy/`; the guided review notebooks are under
 `notebooks/asset_model/`.
 
 ```text
 collaborator and open source data
-  -> processed asset tables and topology
-  -> fixed-capacity PyPSA network
-  -> hazard/damage-derived asset availability
-  -> operational redispatch and service-loss metrics
+  -> checked tables of power stations, substations, lines and demand
+  -> a model of the existing electricity network
+  -> a list of damaged or unavailable assets
+  -> hourly electricity supply and unmet demand
 ```
 
-This follows the mu-star interface:
+The code uses this standard mu-star call:
 
 ```python
 result = EnergyModel().simulate(network, disruptions)
 ```
 
-Inputs are a PyPSA network and a table of disrupted generators, lines or
-substations. Capacity expansion is explicitly rejected.
+Inputs are a prepared PyPSA model and a table listing unavailable power
+stations, lines or substations. The model rejects settings that would allow it
+to build extra generation, transmission or storage.
 
 ### 2. PyPSA-Earth reference track
 
 Use this track to inspect a generic open-data PyPSA-Earth build, renewable
-profiles, capacity-expansion results, and scenario sensitivities. The vendored
-workflow is under `pypsa-earth/`; its analysis notebooks are under
+weather profiles, results for possible future systems, and how results change
+when assumptions change. The included PyPSA-Earth code is under
+`pypsa-earth/`; its analysis notebooks are under
 `notebooks/pypsa_earth/`.
 
 This track is useful for:
 
-- open-data transmission topology;
+- an open-data estimate of which transmission substations are connected;
 - ERA5 renewable profiles;
 - generic GEGIS demand;
-- comparison with a standard PyPSA-Earth capacity-optimisation run.
+- comparison with a standard PyPSA-Earth run that chooses new capacity.
 
-It is not the authoritative representation of existing CEB assets and does not
-feed the interruption model automatically. Hydrogen, ammonia and greenfield
-expansion scenarios are optional reference cases.
+It is not the agreed record of existing CEB assets and does not feed the
+interruption model automatically. Hydrogen, ammonia and future investment
+cases are optional comparisons.
 
 ## Repository Layout
 
 ```text
-├── src/mu_star_energy/          # Fixed-asset model and preprocessing package
-├── config/energy.yaml           # Model paths and operational assumptions
-├── config/damage_curves/        # Damage-curve mapping placeholders
-├── workflow/                    # mu-star-style Snakemake stages
+├── src/mu_star_energy/          # Existing-system model code
+├── config/energy.yaml           # Main model settings
+├── config/damage_curves/        # How physical damage affects each asset type
+├── workflow/                    # Automated data-preparation steps
 ├── notebooks/
-│   ├── asset_model/             # Main data/topology/readiness notebooks
-│   └── pypsa_earth/             # Baseline/reference notebooks
+│   ├── asset_model/             # Prepare and check the existing-system model
+│   └── pypsa_earth/             # Explore open-data and future-system runs
 ├── data/
-│   ├── 0-incoming/              # Raw OneDrive, OSM and GridFinder inputs
-│   ├── 1-processed/             # Reproducible analysis-ready assets
-│   └── 2-out/                   # Disruption results
-├── pypsa-earth/                 # Vendored reference workflow and its outputs
+│   ├── 0-incoming/              # Received and downloaded source files
+│   ├── 1-processed/             # Cleaned files used by the model
+│   └── 2-out/                   # Model results
+├── pypsa-earth/                 # Included PyPSA-Earth code and its outputs
 ├── arc/                         # PyPSA-Earth ARC scripts
 └── DEVELOPMENT_NOTES.md
 ```
@@ -77,6 +81,24 @@ expansion scenarios are optional reference cases.
 The root project has one ordered data tree. The numeric prefixes only make the
 stages sort correctly in an IDE. PyPSA-Earth's own `data/`, `resources/`,
 `networks/`, and `results/` stay inside the vendored `pypsa-earth/` directory.
+
+## Plain-language Guide To Model Terms
+
+- **Asset:** a physical item such as a power station, substation, line or
+  transformer.
+- **Bus:** PyPSA's name for a connection point. In the main electricity model,
+  this is normally a substation.
+- **Capacity:** the maximum power an asset can produce, carry or convert.
+- **Carrier:** PyPSA's name for a fuel, technology or energy type, such as
+  solar, oil, electricity, hydrogen or ammonia.
+- **Dispatch:** the amount each power station produces in each model time step.
+- **Line rating:** the maximum power a line can carry.
+- **Service weight:** the share of total electricity demand assigned to a
+  substation.
+- **Snapshot:** one model time step, for example one hour or three hours.
+- **Unserved energy / load shedding:** electricity demand that the available
+  system could not supply.
+- **Topology:** which substations and lines are connected to each other.
 
 ## First-Time Setup
 
@@ -116,7 +138,7 @@ folders:
 export MU_STAR_DATA_ROOT="/path/to/shared/mu-star-data"
 ```
 
-### 2. Build processed assets and topology
+### 2. Prepare the asset tables and network connections
 
 ```bash
 .venv/bin/python -m mu_star_energy.cli prepare-assets
@@ -142,80 +164,97 @@ Open the notebooks in this order:
 1. `notebooks/asset_model/00_data_intake.ipynb`
 2. `notebooks/asset_model/01_operational_network.ipynb`
 
-The first checks source coverage and creates the generation register template.
-The second reviews the provisional transmission topology, optional distribution
-proxy, and operational readiness gate.
+The first checks which source records are available and creates a power-station
+register template. The second shows the proposed connections between
+substations, estimates how demand might be shared between substations, and
+lists the information still needed before running the model.
 
 Before interruption simulation, the user must supply or validate:
 
-- stable substation and branch identifiers, names and voltage classes;
-- line and transformer thermal ratings;
+- a unique ID, name and voltage for each substation and line;
+- the maximum power each line and transformer can carry;
 - `existing_generators.csv`, based on the generated register template, with
   `generator_id`, `bus_id`, `carrier`, `capacity_mw`, and `marginal_cost`
-  populated and supported by CEB/technical sources;
-- a dated `demand_profile.csv` with timestamps and nodal demand;
-- reviewed service weights for allocating system demand to substations;
+  populated and supported by CEB or other technical sources;
+- a dated `demand_profile.csv` showing electricity demand over time;
+- a reviewed share of total demand for each substation;
 - approved damage curves and restoration assumptions.
 
+In these files:
+
+- `generator_id` is the unique power-station or generating-unit ID;
+- `bus_id` is the substation to which the generator or demand is connected;
+- `carrier` is the fuel or technology, such as hydro, solar or oil;
+- `capacity_mw` is maximum electrical output in megawatts;
+- `marginal_cost` is the estimated cost of producing one additional MWh;
+- a line's `s_nom_mva` is the maximum apparent power it can carry.
+
 `demand_profile.csv` may contain one system column named `demand_mw`, which is
-allocated using `service_weights.csv`, or one complete column per `bus_id`.
-Its index must be parseable as timestamps. Service weights must cover every bus
-and sum to one.
+shared between substations using `service_weights.csv`, or one complete column
+per `bus_id`. Its first column must contain readable dates and times. A service
+weight is simply the share of total demand assigned to a substation; all shares
+must add to one.
 
-### 4. Run interruption scenarios
+### 4. Run outage cases
 
-Once the readiness inputs are complete, build a fixed-capacity PyPSA network
-and call:
+Once the required inputs are complete, build a PyPSA model that cannot add new
+assets and call:
 
 ```python
 result = EnergyModel().simulate(network, disruptions)
 ```
 
-Write scenario results beneath `data/2-out/energy/`.
+Write outage-case results beneath `data/2-out/energy/`.
 
-## Allowed Changes
+## Choices To Review
 
-Users may change:
+The following settings are expected to change as better information becomes
+available:
 
 - the data root through `MU_STAR_DATA_ROOT`;
-- topology snap tolerance and provisional default voltage in
-  `config/energy.yaml`;
-- optional OSM/GridFinder inputs and the service-weight method;
-- solver, value of lost load, scenario definitions and damage assumptions;
-- source adapters, provided schema changes are explicit and provenance is
-  retained.
+- the matching distance used to decide whether a mapped line passes through a
+  substation, and the temporary default voltage, in `config/energy.yaml`;
+- the optional OSM and GridFinder data used to estimate each substation's share
+  of demand;
+- the calculation software, the assumed cost of unmet demand, the outage cases
+  and the damage assumptions;
+- the code that reads a source file when a collaborator supplies a different
+  file format or set of columns. Record what changed and where the replacement
+  data came from.
 
-Users must not:
+Keep these safeguards:
 
-- modify received source files in `data/0-incoming`;
-- treat inferred topology, GridFinder lines or polygon areas as validated
-  electrical parameters;
-- change or recycle stable asset IDs without a documented crosswalk;
-- enable extendable generation, line, link or storage capacity in the
-  interruption model;
-- mix PyPSA-Earth optimisation outputs into the fixed-asset model without an
-  explicit, reviewed conversion step.
+- do not modify received source files in `data/0-incoming`;
+- do not present automatically inferred line connections, GridFinder routes or
+  polygon sizes as confirmed CEB engineering data;
+- do not change a unique asset ID without keeping a table that links the old ID
+  to the new one;
+- do not allow the interruption model to build extra generation, lines or
+  storage;
+- do not copy future-system results from PyPSA-Earth into the existing-system
+  model without a documented review.
 
-## Distribution-Network Treatment
+## How The Distribution Network Is Handled
 
-The real distribution network is unavailable. We therefore keep it outside the
-electrical power-flow representation:
+The detailed low-voltage distribution network is unavailable. We therefore do
+not treat it as part of the electrical network calculation:
 
 - OSM distribution lines provide mapped evidence where available;
 - GridFinder provides inferred network routes based on night lights and roads;
 - combined line length is assigned to the nearest substation to estimate
-  service-area/demand weights.
+  the share of demand served from each substation.
 
-This proxy supports customer-impact allocation, not voltage, conductor,
-protection or distribution power-flow analysis. GridFinder routes must not be
-presented as observed infrastructure.
+This is only a way to estimate where customers and demand may be located. It
+does not provide reliable voltages, cable sizes, protection settings or
+distribution power flows. GridFinder routes are estimates, not observed
+infrastructure.
 
-## PyPSA-Earth Reference Workflow
+## PyPSA-Earth Comparisons
 
 Start with `notebooks/pypsa_earth/README.md`. These notebooks are read-only
 analysis tools unless a notebook explicitly states otherwise. Users are
 expected to select or sync the required network/profile files and verify that
-compared scenarios use compatible configurations. Scenario paths, technology
-subsets and plotting choices are flexible; the underlying input provenance,
-currency year, temporal resolution and scenario assumptions must remain
-visible in any reported comparison.
+compared runs use the same main assumptions. File paths, technologies shown and
+plot styles can be changed. When sharing results, state where the input data
+came from, the year used for costs, the length of each model time step and the
+assumptions that differ between runs.

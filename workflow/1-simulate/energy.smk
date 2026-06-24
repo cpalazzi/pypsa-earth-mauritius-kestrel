@@ -1,8 +1,7 @@
-"""Operational interruption simulations.
+"""Electricity supply calculations during asset outages.
 
-This stage intentionally has no capacity-expansion rule. A simulation rule will
-be enabled once CEB line ratings, generator capacities, generator-to-bus
-assignments and a calibrated demand profile are complete.
+This stage cannot build new assets. It will be enabled once maximum line power,
+power-station output, connected substations and demand over time are complete.
 """
 
 rule validate_energy_model_inputs:
@@ -17,6 +16,6 @@ rule validate_energy_model_inputs:
         """
         mkdir -p $(dirname {output})
         printf '%s\n' \
-          'Input files exist. Run the asset-model notebook to validate ratings, capacities and assignments.' \
+          'Input files exist. Run the asset-model notebook to check line limits, power-station data and substation assignments.' \
           > {output}
         """

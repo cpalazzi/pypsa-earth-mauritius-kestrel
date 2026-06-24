@@ -1,4 +1,4 @@
-"""Prepare collaborator energy assets and infer the transmission topology."""
+"""Prepare collaborator asset tables and propose substation connections."""
 
 rule prepare_energy_assets:
     input:

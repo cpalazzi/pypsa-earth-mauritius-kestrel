@@ -1,11 +1,12 @@
 # 2 - Model outputs
 
-Operational baseline and disruption results are written here. Contents are
+Results for normal operation and asset outages are written here. Contents are
 ignored by git.
 
-Outputs should record the scenario, disrupted assets, solver status, operating
-cost, unserved energy, served fraction, and nodal/sector service impacts.
+Each result should record the case that was run, unavailable assets, whether
+the calculation completed, operating cost, electricity demand not supplied,
+the share of demand supplied, and impacts by substation or customer sector.
 
-Users may create scenario-specific subdirectories, but outputs must remain
-reproducible from versioned configuration plus processed inputs. Do not place
-authoritative source data or manually maintained registers here.
+You can create one subfolder per outage case. A result should be possible to
+recreate from the saved settings and cleaned input files. Do not place source
+data or manually maintained asset registers here.

@@ -1,13 +1,18 @@
 # ARC Cluster Scripts
 
 Scripts for running the Mauritius PyPSA-Earth workflow on Oxford ARC.
+These are technical instructions for the person running large jobs on the
+university computing cluster; collaborators reviewing model assumptions do not
+need to use them.
 
 ## Scripts
 
 - `arc_initial_setup.sh`: one-time clone, directory, license, and environment setup.
 - `build-pypsa-earth-env`: SLURM job to build the conda environment.
-- `arc_check_run_inputs.sh`: preflight check for reusable renewable profiles.
-- `jobs/01_build_profiles.sh`: builds cutout-dependent renewable profiles.
+- `arc_check_run_inputs.sh`: checks whether the required renewable weather
+  profiles already exist.
+- `jobs/01_build_profiles.sh`: builds the wind and solar time series from
+  weather data.
 - `jobs/02_build_networks_and_solve_power.sh`: builds and solves electricity networks.
 
 ## Basic Run
@@ -28,9 +33,9 @@ sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
   configs/scenarios/config.mauritius-year-1.yaml
 ```
 
-## Extension Cases
+## Additional Comparison Runs
 
-Run these only after the baseline profile build succeeds:
+Run these only after the main wind and solar profile build succeeds:
 
 ```bash
 sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
@@ -46,7 +51,8 @@ sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
   configs/scenarios/config.mauritius-year-1-nh3-dea30.yaml
 ```
 
-When variants share `run.name: mauritius-year-1`, chain them instead of running them concurrently:
+When runs share `run.name: mauritius-year-1`, submit them one after another
+instead of at the same time:
 
 ```bash
 JOB1_RAW=$(sbatch --parsable ../arc/jobs/02_build_networks_and_solve_power.sh \

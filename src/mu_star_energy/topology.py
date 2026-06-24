@@ -1,4 +1,4 @@
-"""Infer a transmission bus-branch topology from routes and substation points."""
+"""Propose transmission-line connections from mapped routes and substations."""
 
 from __future__ import annotations
 
@@ -31,12 +31,12 @@ def build_substation_topology(
     snap_tolerance_m: float = 2500,
     default_voltage_kv: float = 66,
 ) -> TopologyResult:
-    """Connect consecutive substations lying near each transmission route part.
+    """Connect consecutive substations lying near each mapped route.
 
     The source route shapefile groups multiple line strings into a small number
-    of features. This function explodes them, projects nearby substations onto
-    each route, and connects consecutive projected substations. Electrical
-    ratings remain unset until validated CEB data are supplied.
+    of records. This function separates them, finds nearby substations and
+    connects consecutive substations along each route. Maximum line power
+    remains unset until confirmed CEB data are supplied.
     """
     required = {"bus_id", "geometry"}
     missing = required - set(substations.columns)
