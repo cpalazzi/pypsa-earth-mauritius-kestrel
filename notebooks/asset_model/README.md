@@ -15,10 +15,12 @@ network for interruption analysis.
 1. `00_data_intake.ipynb`
    - reads the demand workbook and mapped source files;
    - writes cleaned tables to `data/1-processed/energy/collaborator`;
+   - snaps every substation to the nearest transmission route and reports the
+     movement distances;
    - creates a power-station register and identifies missing maximum output,
      running cost and connected-substation information.
 2. `01_operational_network.ipynb`
-   - displays the received transmission route geometry;
+   - displays the transmission routes with the snapped substations;
    - does not derive electrical connections from route proximity;
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
@@ -29,6 +31,8 @@ Review the generated records against CEB reports and collaborator knowledge.
 The method used to share demand can be changed; record this choice. Avoid
 estimating a power station's output from the size of its mapped polygon or
 treating visually adjacent routes and substations as an electrical connection.
+All substations are snapped to a route because the map is coarse. The warning
+table highlights movements over 75 m, but does not exclude those substations.
 
 The intake notebook reloads the local package when its first cell runs. This
 prevents an open Jupyter kernel from retaining the previous `data/incoming`

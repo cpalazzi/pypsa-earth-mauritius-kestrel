@@ -9,6 +9,8 @@ rule prepare_energy_assets:
         generation_areas=f"{INCOMING_ENERGY}/generation_source/GenSource2.shp",
     output:
         substations=f"{PROCESSED_ENERGY}/substations.parquet",
+        snapped_substations=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
+        snap_distances=f"{PROCESSED_ENERGY}/substation_snap_distances.csv",
         routes=f"{PROCESSED_ENERGY}/transmission_routes.parquet",
         register=f"{PROCESSED_ENERGY}/generation_register_template.csv",
         demand=f"{PROCESSED_ENERGY}/annual_sector_demand_gwh.csv",

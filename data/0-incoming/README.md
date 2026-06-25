@@ -20,7 +20,7 @@ data/0-incoming/energy/
 
 The collaborator folder currently comes from the project OneDrive export. Keep
 source filenames unchanged. Record any judgement or correction in a new
-cleaned table, not in the received file.
+cleaned table, not in the source file.
 
 The current intake requires the demand workbook and the main Shapefile parts
 (`.shp`, `.shx`, `.dbf`, and `.prj`) for substations, transmission routes and

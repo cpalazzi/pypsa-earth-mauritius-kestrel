@@ -9,6 +9,8 @@ The energy model writes:
 data/1-processed/energy/
   collaborator/
     substations.parquet
+    snapped_substations.parquet
+    substation_snap_distances.csv
     transmission_routes.parquet
     generation_points.parquet
     generation_areas.parquet
@@ -53,3 +55,11 @@ mapping and comparison. It is not converted into `existing_lines.csv` because
 the source attributes do not identify electrical endpoint substations or line
 ratings. Add `existing_lines.csv` when those data are available from an agreed
 source.
+
+`substations.parquet` preserves the source point coordinates.
+`snapped_substations.parquet` moves every point to the nearest mapped
+transmission route for later network construction.
+`substation_snap_distances.csv` records the original coordinates, matched route
+part and movement distance so coarse or questionable alignments remain visible.
+Every substation is snapped. The 75 m warning used in the intake notebook only
+highlights movements for attention; it does not exclude a point.

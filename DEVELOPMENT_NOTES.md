@@ -39,7 +39,7 @@ existing assets or capacities.
 Current asset-model preparation produces:
 
 - 18 provisional substations;
-- six received vector transmission-route records;
+- six vector transmission-route records;
 - a power-station register template, with capacities, running costs and
   connected substations still to be completed;
 - observed monthly peak demand and annual electricity use by customer group;
@@ -128,11 +128,12 @@ and CEB data.
 Primary asset-model notebooks:
 
 1. `00_data_intake.ipynb` reads the collaborator files, lists the records found
-   and shows missing power-station information.
-2. `01_operational_network.ipynb` displays the received routes and substations,
+   shows substation snap distances and identifies missing power-station
+   information.
+2. `01_operational_network.ipynb` displays the routes and snapped substations,
    estimates how demand is shared and lists missing model inputs.
 
-The received line geometry does not identify the two endpoint substations for
+The line geometry does not identify the two endpoint substations for
 each electrical circuit. The repository therefore does not convert mapped
 routes into model connections. `existing_lines.csv` will be the model input
 once endpoint and engineering data are available from an agreed source.
@@ -245,6 +246,14 @@ automatically overwrite collaborator or CEB records.
 ### Priority 1: complete a runnable existing-system model
 
 - Confirm substation names, voltage levels and unique IDs.
+- Derive a geometric network from `PowerGrid.shp` without adding new routes:
+  - snap every substation to the nearest mapped line;
+  - retain each original coordinate and record the snap distance;
+  - split mapped lines at snapped substations and genuine line intersections;
+  - preserve the source route ID on every resulting segment.
+- Show the snap-distance table prominently in the intake notebook. Most points
+  move less than 75 m, while `SUB_014` moves about 301 m because the source map
+  is coarse.
 - Complete `existing_lines.csv` from CEB records, identifying the endpoint
   substations for each line or transformer.
 - Add voltage, circuit count and maximum power for lines and transformers.

@@ -70,7 +70,7 @@ cases are optional comparisons.
 │   ├── asset_model/             # Prepare and check the existing-system model
 │   └── pypsa_earth/             # Explore open-data and future-system runs
 ├── data/
-│   ├── 0-incoming/              # Received and downloaded source files
+│   ├── 0-incoming/              # Collaborator and downloaded source files
 │   ├── 1-processed/             # Cleaned files used by the model
 │   └── 2-out/                   # Model results
 ├── pypsa-earth/                 # Included PyPSA-Earth code and its outputs
@@ -128,7 +128,7 @@ data/0-incoming/energy/collaborator/
 
 It must contain the expected `power_demand`, `power_transmission`,
 `substation`, and `generation_source` folders described in
-`data/0-incoming/README.md`. Keep received files and filenames unchanged.
+`data/0-incoming/README.md`. Keep source files and filenames unchanged.
 
 To use a shared or OneDrive-synchronised data tree instead, set
 `MU_STAR_DATA_ROOT`. That directory must contain the same numbered stage
@@ -164,8 +164,14 @@ Open the notebooks in this order:
 2. `notebooks/asset_model/01_operational_network.ipynb`
 
 The first checks which source records are available and creates a power-station
-register template. The second displays the transmission routes and substations
-as supplied. It does not infer which substations are connected.
+register template. It also snaps every substation to the nearest transmission
+route and reports the movement distance. The second displays the routes with
+the snapped substations. Snapping aligns point locations but does not infer
+which substations are electrically connected.
+
+All substations are snapped because the map is coarse. A 75 m threshold is
+used only to highlight larger movements in the intake notebook; it is not a
+cutoff. The original coordinates remain available in `substations.parquet`.
 
 `PowerGrid.shp` contains vector line geometry, not just an image. However, it
 does not provide a complete electrical line register: most routes are unnamed,
@@ -264,7 +270,7 @@ available:
 
 Keep these safeguards:
 
-- do not modify received source files in `data/0-incoming`;
+- do not modify source files in `data/0-incoming`;
 - do not present automatically inferred line connections, GridFinder routes or
   polygon sizes as confirmed CEB engineering data;
 - do not change a unique asset ID without keeping a table that links the old ID

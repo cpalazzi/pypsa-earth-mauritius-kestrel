@@ -9,6 +9,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.ops import nearest_points
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 METRIC_CRS = "EPSG:32740"
@@ -37,6 +38,8 @@ REQUIRED_COLLABORATOR_FILES = (
 @dataclass(frozen=True)
 class PreparedAssets:
     substations: Path
+    snapped_substations: Path
+    substation_snap_distances: Path
     transmission_routes: Path
     generation_points: Path
     generation_areas: Path
@@ -46,7 +49,7 @@ class PreparedAssets:
 
 
 def validate_collaborator_inputs(input_dir: Path) -> None:
-    """Give a clear error when a received source file is missing."""
+    """Give a clear error when a required source file is missing."""
     input_dir = Path(input_dir)
     missing = [
         relative_path
@@ -182,6 +185,76 @@ def _station_points_from_areas(areas: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     ]
 
 
+def snap_substations_to_routes(
+    substations: gpd.GeoDataFrame,
+    routes: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
+    """Align every substation with the nearest mapped transmission route.
+
+    There is deliberately no distance cutoff because the source layers are
+    coarse. Original coordinates and movement distances are retained so large
+    adjustments remain visible and can be replaced when better data arrive.
+    """
+    required_substation_columns = {"bus_id", "geometry"}
+    missing_substation_columns = required_substation_columns - set(substations.columns)
+    if missing_substation_columns:
+        raise ValueError(
+            f"Substations missing columns: {sorted(missing_substation_columns)}"
+        )
+    required_route_columns = {"route_id", "geometry"}
+    missing_route_columns = required_route_columns - set(routes.columns)
+    if missing_route_columns:
+        raise ValueError(f"Routes missing columns: {sorted(missing_route_columns)}")
+    if routes.empty:
+        raise ValueError("Cannot snap substations because the route layer is empty")
+
+    metric_substations = substations.to_crs(METRIC_CRS).copy()
+    route_parts = (
+        routes.to_crs(METRIC_CRS)
+        .explode(index_parts=True)
+        .reset_index(drop=True)
+    )
+    route_parts = route_parts[route_parts.geometry.geom_type.eq("LineString")].copy()
+    if route_parts.empty:
+        raise ValueError("Cannot snap substations because the route layer has no lines")
+    route_parts["route_part_id"] = [
+        f"{route_id}_PART_{part_number:03d}"
+        for route_id, part_number in zip(
+            route_parts["route_id"],
+            route_parts.groupby("route_id").cumcount() + 1,
+            strict=True,
+        )
+    ]
+
+    rows: list[dict[str, object]] = []
+    for _, substation in metric_substations.iterrows():
+        # Work in metres so the nearest route and audit distance are meaningful.
+        distances = route_parts.geometry.distance(substation.geometry)
+        nearest_index = distances.idxmin()
+        route = route_parts.loc[nearest_index]
+        snapped_point = nearest_points(substation.geometry, route.geometry)[1]
+        rows.append(
+            {
+                **substation.drop(labels="geometry").to_dict(),
+                "snap_distance_m": float(distances.loc[nearest_index]),
+                "snapped_route_id": str(route["route_id"]),
+                "snapped_route_name": str(route.get("name", "unnamed")),
+                "snapped_route_part_id": str(route["route_part_id"]),
+                "geometry": snapped_point,
+            }
+        )
+
+    snapped = gpd.GeoDataFrame(rows, geometry="geometry", crs=METRIC_CRS)
+    original_points = metric_substations.set_index("bus_id").geometry
+    original_geographic = original_points.to_crs(GEOGRAPHIC_CRS)
+    snapped["original_lon"] = snapped["bus_id"].map(original_geographic.x)
+    snapped["original_lat"] = snapped["bus_id"].map(original_geographic.y)
+    snapped = snapped.to_crs(GEOGRAPHIC_CRS)
+    snapped["snapped_lon"] = snapped.geometry.x
+    snapped["snapped_lat"] = snapped.geometry.y
+    return snapped
+
+
 def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     """Prepare source shapefiles and the CEB workbook for modelling."""
     input_dir = Path(input_dir)
@@ -207,6 +280,7 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
         .astype(float)
     )
     routes["length_km"] = routes.to_crs(METRIC_CRS).length / 1000
+    snapped_substations = snap_substations_to_routes(substations, routes)
 
     points = _read_gdf(input_dir / "generation_source" / "GenSource1.shp").reset_index(
         drop=True
@@ -247,6 +321,8 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
     )
 
     substation_path = output_dir / "substations.parquet"
+    snapped_substation_path = output_dir / "snapped_substations.parquet"
+    snap_distance_path = output_dir / "substation_snap_distances.csv"
     route_path = output_dir / "transmission_routes.parquet"
     point_path = output_dir / "generation_points.parquet"
     area_path = output_dir / "generation_areas.parquet"
@@ -255,6 +331,38 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
     annual_path = output_dir / "annual_sector_demand_gwh.csv"
 
     substations[["bus_id", "name", "asset_type", "geometry"]].to_parquet(substation_path)
+    snapped_substations[
+        [
+            "bus_id",
+            "name",
+            "asset_type",
+            "original_lon",
+            "original_lat",
+            "snap_distance_m",
+            "snapped_route_id",
+            "snapped_route_name",
+            "snapped_route_part_id",
+            "snapped_lon",
+            "snapped_lat",
+            "geometry",
+        ]
+    ].to_parquet(snapped_substation_path)
+    snapped_substations[
+        [
+            "bus_id",
+            "original_lon",
+            "original_lat",
+            "snapped_lon",
+            "snapped_lat",
+            "snap_distance_m",
+            "snapped_route_id",
+            "snapped_route_name",
+            "snapped_route_part_id",
+        ]
+    ].sort_values("snap_distance_m", ascending=False).to_csv(
+        snap_distance_path,
+        index=False,
+    )
     routes[
         ["route_id", "name", "voltage_kv_hint", "length_km", "geometry"]
     ].to_parquet(route_path)
@@ -270,6 +378,8 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
 
     return PreparedAssets(
         substations=substation_path,
+        snapped_substations=snapped_substation_path,
+        substation_snap_distances=snap_distance_path,
         transmission_routes=route_path,
         generation_points=point_path,
         generation_areas=area_path,
