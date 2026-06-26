@@ -67,7 +67,7 @@ cases are optional comparisons.
 ├── config/damage_curves/        # How physical damage affects each asset type
 ├── workflow/                    # Automated data-preparation steps
 ├── notebooks/
-│   ├── asset_model/             # Prepare and check the existing-system model
+│   ├── asset_model/             # Prepare and check the fixed-capacity model
 │   └── pypsa_earth/             # Explore open-data and future-system runs
 ├── data/
 │   ├── 0-incoming/              # Collaborator and downloaded source files
@@ -99,6 +99,42 @@ stages sort correctly in an IDE. PyPSA-Earth's own `data/`, `resources/`,
 - **Unserved energy / load shedding:** electricity demand that the available
   system could not supply.
 - **Topology:** which substations and lines are connected to each other.
+
+## Capacity And Energy Conventions
+
+The fixed-capacity asset model uses the following conventions:
+
+- `Generator.capacity_mw` becomes PyPSA `Generator.p_nom` and is the maximum
+  **electrical output** at the connected bus, in `MW_e`. It is not fuel-input
+  capacity and is not converted to an LHV basis.
+- `Generator.marginal_cost` is in currency per `MWh_e` produced. If a fuel
+  price is supplied per `MWh_fuel` on an LHV basis, convert it before entry:
+  `fuel price / efficiency + variable operating cost`.
+- `Generator.efficiency` is electrical output divided by primary-energy input.
+  PyPSA does not automatically choose LHV or HHV. Use the same basis as the
+  fuel price and record it explicitly in `fuel_energy_basis`.
+- AC `Line.s_nom_mva` and `Transformer.s_nom` are apparent-power ratings in
+  MVA. Bus `v_nom_kv` is nominal voltage in kV. A transformer between voltage
+  levels must use separate buses and a PyPSA `Transformer`.
+- PyPSA `Link.p_nom` is different: it limits power withdrawn from `bus0`, so it
+  is normally an **input-side** capacity. Output at `bus1` is
+  `p_nom * efficiency`. For a conversion technology reported by output
+  capacity, use `p_nom = output capacity / efficiency`.
+- For a transmission `Link`, such as a controllable HVDC connection,
+  `p_nom` is sending-end capacity and receiving-end power is reduced by its
+  efficiency. Passive AC transmission uses `Line`, not `Link`.
+- `Link.marginal_cost` is charged per MWh withdrawn at `bus0`, before
+  efficiency losses.
+
+The current asset model represents existing power stations as `Generator`
+components, so their installed capacities are output-side `MW_e`. Hydrogen,
+ammonia and other explicit conversion chains use `Link` components in the
+separate PyPSA-Earth comparison workflow. The current network builder creates
+AC `Line` components only; explicit transformer-table support remains a
+development task.
+
+These conventions follow the
+[PyPSA 0.30.3 component definitions](https://docs.pypsa.org/v0.30.3/user-guide/components.html).
 
 ## First-Time Setup
 
@@ -162,12 +198,21 @@ Open the notebooks in this order:
 
 1. `notebooks/asset_model/00_data_intake.ipynb`
 2. `notebooks/asset_model/01_operational_network.ipynb`
+3. `notebooks/asset_model/03_interruption_analysis.ipynb`
 
 The first checks which source records are available and creates a power-station
 register template. It also snaps every substation to the nearest transmission
 route and reports the movement distance. The second displays the routes with
 the snapped substations. Snapping aligns point locations but does not infer
-which substations are electrically connected.
+which substations are electrically connected. The third notebook shows
+how to load supplied generators, lines and demand, build a fixed-capacity
+network, run normal operation first, and then structure outage cases. It
+shows the standard mu-star handoff from asset damage to the
+`component`/`asset_id`/`available_fraction` disruption table used by
+`EnergyModel.simulate(network, disruptions)`, and sets out a staged,
+explicitly synthetic GridFinder experiment, starting with feeder connectivity
+and downstream service loss before adding assumed distribution power-flow
+parameters.
 
 All substations are snapped because the map is coarse. A 75 m threshold is
 used only to highlight larger movements in the intake notebook; it is not a
@@ -200,9 +245,11 @@ In these files:
 - `generator_id` is the unique power-station or generating-unit ID;
 - `bus_id` is the substation to which the generator or demand is connected;
 - `carrier` is the fuel or technology, such as hydro, solar or oil;
-- `capacity_mw` is maximum electrical output in megawatts;
-- `marginal_cost` is the estimated cost of producing one additional MWh;
-- a line's `s_nom_mva` is the maximum apparent power it can carry.
+- `capacity_mw` is maximum electrical output in `MW_e`;
+- `marginal_cost` is the estimated cost of producing one additional
+  `MWh_e`;
+- a line's `s_nom_mva` is its maximum apparent-power rating in MVA;
+- `v_nom_kv` is nominal AC bus and line voltage in kV.
 
 `demand_profile.csv` may contain one system column named `demand_mw`, which is
 shared between substations using `service_weights.csv`, or one complete column
@@ -277,8 +324,8 @@ Keep these safeguards:
   to the new one;
 - do not allow the interruption model to build extra generation, lines or
   storage;
-- do not copy future-system results from PyPSA-Earth into the existing-system
-  model without a documented review.
+- do not copy future-system results from PyPSA-Earth into the reviewed
+  current-system case without a documented review.
 
 ## How The Distribution Network Is Handled
 
@@ -294,6 +341,14 @@ This is only a way to estimate where customers and demand may be located. It
 does not provide reliable voltages, cable sizes, protection settings or
 distribution power flows. GridFinder routes are estimates, not observed
 infrastructure.
+
+The proposed extension is to keep this proxy in the baseline model and build a
+separate synthetic-distribution scenario. GridFinder routes would be split
+into a graph, anchored to substations with documented distance thresholds and
+loaded using population or building data. The first experiment should model
+downstream disconnection only. Distribution power flow requires separate
+voltage-level buses, transformers and named sensitivity cases for uncertain
+feeder capacities and impedances.
 
 ## PyPSA-Earth Comparisons
 

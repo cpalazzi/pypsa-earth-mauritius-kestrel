@@ -308,8 +308,12 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
         crs=GEOGRAPHIC_CRS,
     ).rename(columns={"asset_id": "generator_id"})
     generation_sites["capacity_mw"] = np.nan
+    generation_sites["capacity_basis"] = "electrical_output"
+    generation_sites["capacity_unit"] = "MW_e"
     generation_sites["carrier"] = generation_sites["asset_type"]
     generation_sites["marginal_cost"] = np.nan
+    generation_sites["marginal_cost_basis"] = "electrical_output"
+    generation_sites["fuel_energy_basis"] = pd.NA
     generation_sites["status"] = "needs_validation"
     generation_sites["bus_id"] = pd.NA
     generation_sites["source"] = "collaborator_geometry"

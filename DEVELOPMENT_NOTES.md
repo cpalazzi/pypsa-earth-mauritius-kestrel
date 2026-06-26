@@ -107,6 +107,21 @@ PyPSA represents:
 The model only chooses how existing power stations operate in each time step.
 Every PyPSA setting that allows new capacity must remain false.
 
+Capacity conventions:
+
+- existing generators use electrical output capacity in `MW_e`;
+- generator marginal cost is per `MWh_e`, with LHV or HHV fuel assumptions
+  recorded separately;
+- AC lines and transformers use `s_nom` apparent-power ratings in MVA;
+- bus voltage is in kV;
+- explicit conversion technologies use input-side `Link.p_nom`, with output
+  equal to input multiplied by efficiency.
+
+PyPSA does not impose LHV or HHV. Record the basis used by each fuel-price and
+efficiency source. The current builder supports AC lines only; add explicit
+transformer-table support before representing substations with multiple voltage
+levels.
+
 ### Estimating the location of demand
 
 The actual distribution system is not available. Use:
@@ -122,6 +137,12 @@ give them assumed capacities.
 GridFinder estimates possible routes from night-time lights and roads. Keep a
 `source` column so users can distinguish GridFinder estimates from OSM mapping
 and CEB data.
+
+For a distribution-network experiment, keep GridFinder routes out of the
+reviewed baseline and label the alternative topology as synthetic. Start with
+graph connectivity and downstream demand disconnection. Distribution
+power-flow cases require separate voltage-level buses and transformers, plus
+named sensitivity sets for assumed feeder capacities and impedances.
 
 ## Notebook Separation
 

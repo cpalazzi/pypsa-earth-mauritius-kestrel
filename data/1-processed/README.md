@@ -35,9 +35,34 @@ Column meanings:
 - `generator_id`: unique ID for a power station or generating unit;
 - `bus_id`: unique ID for the connected substation;
 - `carrier`: fuel or technology, such as hydro, solar or oil;
-- `capacity_mw`: maximum output in megawatts;
-- `marginal_cost`: cost of producing one additional MWh;
+- `capacity_mw`: maximum electrical output in `MW_e`, mapped directly to
+  `Generator.p_nom`;
+- `capacity_basis`: must be `electrical_output`;
+- `capacity_unit`: `MW_e`;
+- `marginal_cost`: cost of producing one additional `MWh_e`;
+- `marginal_cost_basis`: `electrical_output`;
+- `fuel_energy_basis`: record `LHV` or `HHV` when a thermal fuel price or
+  efficiency is used;
 - `s_nom_mva`: maximum apparent power carried by a line.
+- `v_nom_kv`: nominal voltage in kV. Lines at different voltages require
+  separate buses connected by a transformer.
+
+The asset model does not store generator capacity on an LHV fuel-input basis.
+If a fuel price is supplied per thermal MWh on an LHV basis, convert it to
+electrical marginal cost using the documented generator efficiency. PyPSA
+`Link.p_nom`, used for explicit conversion technologies, is instead input-side
+power at `bus0`. PyPSA does not select LHV or HHV automatically, so
+`fuel_energy_basis` must record the source convention.
+
+The current network builder creates AC lines but does not yet read a separate
+transformer register. Mixed voltage levels therefore require a later
+transformer extension rather than being combined into one bus.
+
+Add `source_route_id` to `existing_lines.csv` when a reviewed electrical line
+can be linked to a route in `transmission_routes.parquet`. The network map uses
+this optional field to display reviewed kV and MVA values on the corresponding
+route. Without it, the table remains usable by the model but cannot be placed
+on the source-route map.
 
 The model-building Python function accepts these time-varying demand values.
 The automated workflow currently checks that the file exists but does not yet

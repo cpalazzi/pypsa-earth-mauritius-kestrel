@@ -28,6 +28,39 @@ def _time_step_hours(index: pd.Index) -> float:
     return float(intervals.iloc[0])
 
 
+def _bus_voltage_kv(
+    bus_id: str,
+    bus_row: pd.Series,
+    lines: pd.DataFrame,
+) -> float:
+    """Return one nominal bus voltage consistent with its connected AC lines."""
+    connected = lines.loc[
+        lines["bus0"].astype(str).eq(bus_id) | lines["bus1"].astype(str).eq(bus_id),
+        "v_nom_kv",
+    ].dropna()
+    connected_voltages = np.unique(connected.astype(float))
+
+    explicit_voltage = bus_row.get("v_nom_kv")
+    if pd.notna(explicit_voltage):
+        explicit_voltage = float(explicit_voltage)
+        if connected_voltages.size and not np.allclose(
+            connected_voltages,
+            explicit_voltage,
+        ):
+            raise ValueError(
+                f"Bus {bus_id} voltage does not match its connected line voltages"
+            )
+        return explicit_voltage
+    if connected_voltages.size == 1:
+        return float(connected_voltages[0])
+    if connected_voltages.size > 1:
+        raise ValueError(
+            f"Bus {bus_id} has multiple line voltages. Represent each voltage "
+            "level as a separate bus connected by a Transformer."
+        )
+    return 66.0
+
+
 def build_operational_network(
     buses: gpd.GeoDataFrame,
     lines: gpd.GeoDataFrame,
@@ -42,6 +75,10 @@ def build_operational_network(
 
     The model cannot build extra capacity. Missing line limits or power-station
     capacities cause a clear error rather than being estimated by the model.
+
+    Generator ``capacity_mw`` is electrical output capacity and is passed
+    directly to ``Generator.p_nom``. Line ``s_nom_mva`` is an apparent-power
+    rating. This function does not convert capacities to or from an LHV basis.
     """
     _require_columns(buses, {"bus_id", "geometry"}, "buses")
     _require_columns(
@@ -72,6 +109,15 @@ def build_operational_network(
             "Power-station maximum output is incomplete; populate capacity_mw "
             "before simulation"
         )
+    if "capacity_basis" in generators:
+        invalid_basis = ~generators["capacity_basis"].astype(str).str.lower().eq(
+            "electrical_output"
+        )
+        if invalid_basis.any():
+            raise ValueError(
+                "Generator capacity_basis must be 'electrical_output'; "
+                "Generator.p_nom is output-side MW"
+            )
     if generators["marginal_cost"].isna().any():
         raise ValueError(
             "Power-station running costs are incomplete; populate marginal_cost "
@@ -93,16 +139,18 @@ def build_operational_network(
 
     bus_frame = buses.to_crs("EPSG:4326").set_index("bus_id")
     for bus_id, row in bus_frame.iterrows():
+        bus_id = str(bus_id)
         network.add(
             "Bus",
-            str(bus_id),
+            bus_id,
             x=float(row.geometry.x),
             y=float(row.geometry.y),
-            v_nom=float(row.get("v_nom_kv", 66)),
+            v_nom=_bus_voltage_kv(bus_id, row, lines),
             carrier="AC",
         )
 
     for _, row in lines.iterrows():
+        # PyPSA Line.s_nom is the branch apparent-power rating in MVA.
         network.add(
             "Line",
             str(row["line_id"]),
@@ -119,6 +167,7 @@ def build_operational_network(
         carrier = str(row["carrier"])
         if carrier not in network.carriers.index:
             network.add("Carrier", carrier)
+        # Generator.p_nom limits electrical output at the connected bus.
         network.add(
             "Generator",
             str(row["generator_id"]),

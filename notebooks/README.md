@@ -5,12 +5,16 @@ purpose, not just by data source.
 
 ## `asset_model/`
 
-Main notebooks for the Mauritius existing-system interruption model. Run these
-notebooks in numeric order after placing collaborator data under
+Main notebooks for the Mauritius fixed-capacity interruption workflow. Run
+these notebooks in numeric order after placing collaborator data under
 `data/0-incoming` or an equivalent `MU_STAR_DATA_ROOT`.
 
 These notebooks create and review processed data. They do not estimate missing
-line capacities or choose new power stations.
+line capacities or choose new power stations. The current sequence ends with
+`03_interruption_analysis.ipynb`, which follows the path from supplied system
+tables to fixed-capacity baseline and outage runs, ties those steps to the
+standard mu-star interface of system data plus disrupted assets, and documents
+a staged GridFinder-based distribution-network experiment.
 
 ## `pypsa_earth/`
 

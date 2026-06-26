@@ -82,7 +82,6 @@ def test_operational_network_rejects_missing_generator_marginal_cost():
     buses = geopandas.GeoDataFrame(
         {
             "bus_id": ["A", "B"],
-            "v_nom_kv": [66, 66],
             "geometry": [
                 shapely_geometry.Point(57.5, -20.2),
                 shapely_geometry.Point(57.6, -20.2),
@@ -134,7 +133,6 @@ def test_operational_network_uses_profile_values_and_time_step_duration():
     buses = geopandas.GeoDataFrame(
         {
             "bus_id": ["A", "B"],
-            "v_nom_kv": [66, 66],
             "geometry": [
                 shapely_geometry.Point(57.5, -20.2),
                 shapely_geometry.Point(57.6, -20.2),
@@ -162,7 +160,9 @@ def test_operational_network_uses_profile_values_and_time_step_duration():
             "bus_id": ["A"],
             "carrier": ["thermal"],
             "capacity_mw": [100.0],
+            "capacity_basis": ["electrical_output"],
             "marginal_cost": [50.0],
+            "efficiency": [0.4],
         }
     )
     demand = pd.DataFrame(
@@ -178,6 +178,10 @@ def test_operational_network_uses_profile_values_and_time_step_duration():
     )
 
     assert network.snapshot_weightings.generators.eq(0.5).all()
+    assert network.generators.at["plant", "p_nom"] == 100.0
+    assert network.generators.at["plant", "efficiency"] == 0.4
+    assert network.lines.at["AB", "s_nom"] == 100.0
+    assert network.buses.loc[["A", "B"], "v_nom"].eq(66.0).all()
     assert network.loads_t.p_set["load::A"].tolist() == [10.0, 15.0]
     assert network.loads_t.p_set["load::B"].tolist() == [30.0, 45.0]
 

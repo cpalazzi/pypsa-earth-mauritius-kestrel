@@ -24,6 +24,14 @@ network for interruption analysis.
    - does not derive electrical connections from route proximity;
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
+3. `03_interruption_analysis.ipynb`
+   - loads the supplied generator, line and demand files when they are present;
+   - shows how `damage_to_disruptions(...)` converts asset damage into the
+     standard mu-star disruption table;
+   - builds a fixed-capacity baseline network when the required files exist;
+   - compares normal operation with outage cases and writes result tables under
+     `data/2-out/energy/`;
+   - documents a staged, synthetic GridFinder distribution-network experiment.
 
 ## User instructions
 
@@ -49,14 +57,36 @@ substations, voltage, length and maximum power. The repository does not create
 this table from the mapped route geometry.
 
 The present workflow checks for `demand_profile.csv` but does not yet read it
-and run the final outage calculation automatically. The network-building
-function can use a time-varying demand table when called from Python. It
-supports regular half-hourly, hourly and three-hourly profiles and sets their
-duration from the timestamp spacing.
+and run the final outage calculation automatically. The notebook
+`03_interruption_analysis.ipynb` shows the current Python route:
+load the supplied system files, convert damage to a disruption table when needed,
+build the network, run a baseline case, and then test outage scenarios. In the
+wider mu-star architecture this is the component-model step between hazard and
+damage calculations upstream and indirect-loss or viewer steps downstream. The
+network-building function can use a time-varying demand table when called from
+Python. It supports regular half-hourly, hourly and three-hourly profiles and
+sets their duration from the timestamp spacing.
+
+GridFinder is currently used only as a demand-location proxy. The interruption
+notebook describes a separate experimental path that converts inferred routes
+to a graph, anchors feeders to reviewed substations and first tests downstream
+disconnection. Electrical distribution power flow should only follow after
+transformer support and explicit voltage, capacity and impedance sensitivity
+cases are added.
 
 The column names are kept because the code needs them:
 
 - `bus_id` means the connected substation;
 - `carrier` means the fuel or technology;
-- `capacity_mw` means maximum output;
-- `marginal_cost` means the cost of producing one additional MWh.
+- `capacity_mw` means maximum electrical output in `MW_e`;
+- `capacity_basis` must be `electrical_output`;
+- `marginal_cost` means the cost of producing one additional `MWh_e`;
+- `fuel_energy_basis` records LHV or HHV when fuel assumptions are used;
+- `s_nom_mva` is line or transformer apparent-power capacity;
+- `source_route_id` optionally links a reviewed line to the mapped geometry so
+  its voltage and capacity can appear on the network map.
+
+The maps show capacity labels only when reviewed values exist. At present the
+generator template contains no capacities, the line register is absent, and
+only one source route contains a voltage hint. Missing labels therefore mean
+missing input data, not zero capacity.
