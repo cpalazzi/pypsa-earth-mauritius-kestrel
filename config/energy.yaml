@@ -1,3 +1,5 @@
+# Energy interruption-model settings (mu_star_energy). PyPSA-Earth is configured
+# separately under pypsa-earth/.
 data_root: data
 
 energy:

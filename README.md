@@ -33,28 +33,33 @@ does not feed the interruption model.
 
 ## Repository layout
 
+The energy interruption model (the deliverable) and a vendored PyPSA-Earth
+reference sit side by side. Everything at the top level belongs to the energy
+model except `pypsa-earth/`, `arc/` and `references/`.
+
 ```text
-├── src/mu_star_energy/          # Fixed-capacity interruption model code
-├── config/energy.yaml           # Main model settings
-├── config/damage_curves/        # How physical damage affects each asset type
-├── workflow/                    # Automated data-preparation steps
+# Energy interruption model — delivered to mu-star as the `energy` component
+├── src/mu_star_energy/      # Model code
+├── config/                  # Model settings (energy.yaml) and damage curves
+├── workflow/                # Snakemake preparation/run rules
+├── data/                    # Model data: 0-incoming -> 1-processed -> 2-out
+├── tests/
 ├── notebooks/
-│   ├── 00-data-review/           # Review source data and write cleaned tables
-│   ├── 01-build-network/        # Build saved PyPSA network handoff files
-│   ├── 02-interruption-analysis/ # Load saved networks and run outage cases
-│   └── pypsa-earth-analysis/    # Explore open-data and future-system runs
-├── data/
-│   ├── 0-incoming/              # Collaborator and downloaded source files
-│   ├── 1-processed/             # Cleaned files used by the model
-│   └── 2-out/                   # Model results
-├── pypsa-earth/                 # Included PyPSA-Earth code and its outputs
-├── arc/                         # PyPSA-Earth ARC scripts
-└── DEVELOPMENT_NOTES.md
+│   ├── 00-data-review/
+│   ├── 01-build-network/
+│   └── 02-interruption-analysis/
+
+# PyPSA-Earth reference — vendored, with its own config/data inside
+├── pypsa-earth/             # Vendored PyPSA-Earth code and outputs
+├── arc/                     # Scripts to run PyPSA-Earth on the ARC cluster
+├── references/              # Reference data sheets
+└── notebooks/pypsa-earth-analysis/   # Notebooks exploring PyPSA-Earth runs
 ```
 
-One ordered data tree; the numeric prefixes just keep the stages sorted in a
-file browser. PyPSA-Earth's own `data/`, `resources/`, `networks/` and
-`results/` stay inside the vendored `pypsa-earth/` directory.
+The energy model's `config/`, `workflow/`, `data/` and `src/` mirror the mu-star
+component layout. PyPSA-Earth keeps its own `config/`, `data/`, `resources/` and
+`results/` inside `pypsa-earth/`. Within `data/`, the numeric prefixes just keep
+the stages sorted in a file browser.
 
 ## Glossary
 
