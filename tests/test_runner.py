@@ -27,7 +27,7 @@ def _write_reviewed_inputs(input_dir):
             "s_nom_mva": [100.0],
             "geometry": [LineString([(57.5, -20.2), (57.6, -20.2)]).wkt],
         }
-    ).to_csv(input_dir / "existing_lines.csv", index=False)
+    ).to_csv(input_dir / "lines.csv", index=False)
     pd.DataFrame(
         {
             "generator_id": ["plant"],
@@ -37,7 +37,7 @@ def _write_reviewed_inputs(input_dir):
             "capacity_basis": ["electrical_output"],
             "marginal_cost": [10.0],
         }
-    ).to_csv(input_dir / "existing_generators.csv", index=False)
+    ).to_csv(input_dir / "generators.csv", index=False)
     pd.DataFrame(
         {
             "timestamp": pd.date_range("2025-01-01", periods=2, freq="h"),
@@ -84,11 +84,18 @@ def test_run_interruption_analysis_writes_baseline_and_outage_outputs(tmp_path):
     )
 
     summary = pd.read_csv(outputs.summary_metrics, index_col="case")
+    demand_summary = pd.read_csv(outputs.demand_summary, index_col="scope")
     outage_unserved = pd.read_csv(outputs.outage_unserved, index_col="timestamp")
 
     assert summary.loc["baseline", "unserved_energy_mwh"] == 0.0
     assert summary.loc["outage", "unserved_energy_mwh"] == 55.0
+    assert demand_summary.loc["system", "profile_demand_mwh"] == 80.0
+    assert demand_summary.loc["system", "annualized_demand_mwh"] == 350_400.0
+    assert demand_summary.loc["system", "peak_demand_mw"] == 40.0
+    assert demand_summary.loc["system", "load_factor"] == 1.0
+    assert demand_summary.loc["bus::B", "profile_demand_mwh"] == 80.0
     assert outage_unserved["B"].sum() == 55.0
+    assert outputs.demand_summary.is_file()
     assert outputs.baseline_metrics.is_file()
     assert outputs.outage_metrics.is_file()
     assert outputs.baseline_network is None

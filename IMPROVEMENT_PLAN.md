@@ -8,13 +8,19 @@ public call `EnergyModel().simulate(network, disruptions)`.
 
 ## Status (2026-06-29)
 
-- Phase 1 (notebook numbering): done — sequence is 00→01→02.
-- Phase 2 (developer notes): done — delivery, schema and module map documented.
-- Phase 3 (runnable model): done — `run-interruptions` CLI + Snakemake rules
-  consume `demand_profile.csv`; optional generator availability supported.
-- Phase 4 (inferred distribution): done — `distribution_network.py` builds the
-  flagged GridFinder/OSM graph and downstream-disconnection impacts.
-- Phase 5 (validation + delivery) and real CEB data: outstanding.
+- 00→01→02 numbering, runner CLI, inferred-distribution graph, delivery notes: done.
+- `network_source.py` and `mu-star-energy build-network` now provide the saved
+  network handoff for `base` and `inferred` sources.
+- Current local generation:
+  - source review tables regenerated under `data/1-processed/energy/collaborator/`;
+  - reviewed `base` network attempted but blocked until `lines.csv`,
+    `generators.csv`, and `demand_profile.csv` are supplied;
+  - structural `inferred` network generated at
+    `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth
+    OSM line extraction fallback and provisional one-snapshot demand.
+- Next: finish notebook restructuring around the network-source selector and
+  replace provisional inferred inputs with cached OSM/GridFinder and reviewed
+  demand/generator tables.
 
 ## Context: the mu-star delivery target
 
@@ -29,71 +35,84 @@ public call `EnergyModel().simulate(network, disruptions)`.
   Keep our numbered names locally but document the mapping; do not rename yet.
 - mu-star targets Python ≥3.12; confirm our `pyproject.toml` is compatible before delivery.
 
-## Phase 1 — Fix notebook numbering (do first, mechanical)
+## Naming conventions (decided)
 
-Current: `notebooks/asset_model/00_data_intake`, `01_operational_network`,
-`03_interruption_analysis` (gap at 02; any `*_draft.ipynb` is stale).
+- `notebooks/asset_model/` was renamed to `notebooks/interruption_model/`, then
+  split by lifecycle stage (see restructure below): `0-data_review/`,
+  `1-network/`, `2-interruption/`, alongside `pypsa_earth/`.
+- `existing_lines.csv` → `lines.csv`, `existing_generators.csv` → `generators.csv`
+  (within this model every asset is "existing", so the prefix is noise). Already
+  applied to code, config, tests and docs; the notebook restructure below must
+  adopt the same names and drop `existing_*` variables.
 
-1. Rename `03_interruption_analysis.ipynb` -> `02_interruption_analysis.ipynb`
-   with `git mv` (preserve history).
-2. Delete any leftover `03_interruption_analysis_draft.ipynb` only if it has no
-   unique content; otherwise fold useful cells into `02_` first.
-3. Grep-and-update every reference: `grep -rn "03_interruption_analysis"` across
-   `README.md`, `notebooks/README.md`, `notebooks/asset_model/README.md`, the
-   notebook intro cells, and `tests/`. Update titles inside notebook cells too.
-4. Acceptance: numeric sequence is 00→01→02; no dangling refs; `pytest` green.
+## The two models
 
-## Phase 2 — Developer notes refresh
+- **Interruption model** (`src/mu_star_energy`; notebooks `0-data_review`,
+  `1-network`, `2-interruption`): fixed-capacity dispatch + outage analysis.
+  The mu-star deliverable.
+- **PyPSA-Earth** (`pypsa-earth/`, `notebooks/pypsa_earth`): open-data build,
+  demand/weather/renewable methods, and capacity expansion. Present so the
+  interruption model can borrow methods (e.g. demand profiles) and as the
+  natural home for a future **capacity-expansion** extension. Keep the two
+  separate; expansion never runs inside the interruption simulator
+  (`assert_fixed_capacity` stays).
 
-Update `DEVELOPMENT_NOTES.md` and per-folder READMEs to reflect current state:
+## Notebook restructure (agent brief)
 
-- State delivery target explicitly: package `mu_star_energy` → mu-star `src/energy`,
-  data-stage name mapping, disruption-schema mapping. Add a "Delivery to mu-star"
-  section with the interface, dependency, and Python-version checklist.
-- Trim repeated defensive negations; keep limitation notes only where factual.
-- Add a short "module map": `intake.py`, `network.py`, `model.py`, `damage.py`,
-  `distribution.py`, `paths.py`, `cli.py` — one line each.
-- Acceptance: a new contributor can find the interface and run intake→sim from
-  the notes alone.
+Decision: split notebooks by lifecycle stage. The network is a shared artifact;
+interruption is one analysis over it (capacity expansion will be another). The
+handoff between stages is a saved PyPSA network file, so no notebook depends on
+another's in-memory state. One builder takes a `source` setting; both tracks
+converge on `EnergyModel.simulate`.
 
-## Phase 3 — Complete a runnable existing-system model
+```
+notebooks/
+  0-data_review/   look only: CEB shapefiles + OSM/GridFinder, maps, tables. No model.
+  1-network/       build source = base | inferred (per island); fetch OSM/GridFinder if
+                   absent; emit lines/buses/generators/demand -> PyPSA network; save .nc.
+  2-interruption/  load a saved network, baseline + outage cases, write metrics.
+  pypsa_earth/     open-data reference; future capacity-expansion analysis.
+```
 
-Blocking gaps to close (already listed in DEVELOPMENT_NOTES priorities 1–4):
+- Migrate today's notebooks with `git mv`: `00_data_intake` -> `0-data_review/`,
+  `01_operational_network` -> `1-network/` (becomes the build notebook),
+  `02_interruption_analysis` -> `2-interruption/`.
+- Handoff artifact: `data/1-processed/energy/networks/<source>[-<island>].nc`.
+  `1-network` writes it; `2-interruption` loads it and never branches on source.
+- Keep numeric folder prefixes + a top-level `notebooks/README.md` run order.
+  Islands and scenarios are parameters inside `1-network`, not extra folders.
 
-1. `demand_profile.csv` is checked but not consumed by the workflow. Add a CLI
-   command + Snakemake rule to read it, validate timestamps/units, build the
-   network via `build_operational_network`, run baseline, write to `data/2-out`.
-2. Generator availability over time: extend `build_operational_network` to accept
-   optional per-generator/per-snapshot availability; wire wind/solar to ERA5
-   profiles already in `pypsa-earth/resources/mauritius-year-1/`.
-3. Acceptance: baseline run completes with no load-shedding; outage run produces
-   `unserved_energy_mwh` > 0; results saved under `data/2-out/energy/`.
+### 1. Single builder, two sources
+- `network_source.py` now has `build_network(source, ...)`:
+  - `base` -> reviewed `lines`/`generators`/`demand_profile` CSVs (today's path);
+  - `inferred` -> OSM-road + GridFinder feeders, per island. Must emit the same
+    `lines`/buses/demand schema so `build_operational_network` and
+    `EnergyModel.simulate` are identical. The first convergence is implemented:
+    the graph in `distribution_network.py` can become a PyPSA network.
+- `2-interruption` only takes a saved network; it never branches on source.
 
-## Phase 4 — Distribution network draft (OpenGridFinder)
+### 2. OSM ingestion (run if not cached)
+- Add `osm.py` (osmnx + Overpass), cache to `0-incoming/energy/osm/<island>/`:
+  roads, `power=line/cable`, generators/substations, buildings. Islands:
+  Rodrigues, Agalega, St Brandon (near-empty - handle gracefully). Add `osmnx`
+  to `pyproject.toml`. GridFinder under `0-incoming/energy/gridfinder/`.
 
-Today `distribution.py` only assigns demand shares by nearest-line length. Add a
-INFERRED distribution layer kept out of the reviewed baseline:
+### 3. Builder convergence + transformers
+- `inferred_graph -> tables` helper; add transformer/voltage support to
+  `network.py` (AC-lines-only today) so distribution hangs under transmission.
+  Capacities are estimates -> low/base/high sets, `inferred` flag, never in base.
 
-1. Ingest OpenGridFinder lines into `data/0-incoming/energy/gridfinder/`; keep a
-   `source` column to separate GridFinder estimates from OSM/CEB.
-2. New module `src/mu_star_energy/distribution_network.py`:
-   - build a graph from GridFinder + OSM segments, anchor feeders to reviewed
-     substations with a documented snap threshold;
-   - load nodes by population/building proxy.
-3. Stage A (do first): graph connectivity + downstream disconnection only —
-   when a bus/feeder is cut, count demand lost, no power flow.
-4. Stage B (later): power flow needs separate voltage buses + transformers and
-   named sensitivity sets for feeder capacity/impedance. Gate behind a flag.
-5. Label everything `inferred`; never merge into the CEB baseline. Add tests.
-6. Acceptance: a scenario flag builds the inferred layer; baseline unchanged.
+### 4. First-pass docs
+- One README per notebook folder (Purpose/Inputs/Outputs/Settings); update
+  top-level README + DEVELOPMENT_NOTES module map; clear outputs before commit.
 
-## Phase 5 — Validation & delivery prep
+Acceptance: `1-network` builds base or any island inferred grid and saves a
+network; `2-interruption` runs any saved network unchanged; tests green.
 
-- Reconcile annual/peak/sector demand vs CEB; capacity factors vs reports.
-- Mirror `src/transport/` layout; confirm `simulate` returns the metrics
-  mu-star expects; add `src/<model>/tests/`.
-- Document copy/move path: `mu_star_energy` → `mu-star/src/energy`, stage rename
-  `0-incoming/1-processed/2-out` → `incoming/processed/out`.
+## Delivery prep
+
+- Mirror `src/transport/` layout; confirm `simulate` metrics; stage rename
+  `0-incoming/1-processed/2-out` → `incoming/processed/out` at move time.
 
 ## Guardrails
 

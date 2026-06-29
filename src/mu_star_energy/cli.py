@@ -14,6 +14,7 @@ from mu_star_energy.distribution_network import (
     write_inferred_distribution_tables,
 )
 from mu_star_energy.intake import prepare_collaborator_data
+from mu_star_energy.network_source import build_network
 from mu_star_energy.paths import incoming_energy_dir, output_energy_dir, processed_energy_dir
 from mu_star_energy.runner import run_interruption_analysis
 
@@ -33,6 +34,32 @@ def _run_interruptions(args: argparse.Namespace) -> None:
         generator_availability_path=args.generator_availability,
         require_no_baseline_shedding=args.require_no_baseline_shedding,
         export_networks=not args.skip_network_export,
+    )
+    print(
+        json.dumps(
+            {
+                key: str(value) if value is not None else None
+                for key, value in outputs.__dict__.items()
+            },
+            indent=2,
+        )
+    )
+
+
+def _build_network(args: argparse.Namespace) -> None:
+    outputs = build_network(
+        args.source,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        generator_availability_path=args.generator_availability,
+        gridfinder_lines_path=args.gridfinder_lines,
+        osm_distribution_lines_path=args.osm_distribution_lines,
+        allow_pypsa_earth_osm_fallback=not args.no_pypsa_earth_osm_fallback,
+        allow_provisional_demand=args.allow_provisional_demand,
+        max_anchor_distance_m=args.max_anchor_distance_m,
+        inferred_voltage_kv=args.inferred_voltage_kv,
+        inferred_capacity_mva=args.inferred_capacity_mva,
+        value_of_lost_load=args.value_of_lost_load,
     )
     print(
         json.dumps(
@@ -87,6 +114,57 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir", type=Path, default=processed_energy_dir() / "collaborator"
     )
     prepare.set_defaults(func=_prepare_assets)
+
+    build = subparsers.add_parser("build-network")
+    build.add_argument("source", choices=["base", "inferred"])
+    build.add_argument(
+        "--input-dir",
+        type=Path,
+        default=processed_energy_dir() / "collaborator",
+        help="Folder containing reviewed/intermediate network inputs.",
+    )
+    build.add_argument(
+        "--output-dir",
+        type=Path,
+        default=processed_energy_dir() / "networks",
+        help="Folder where saved network handoff files are written.",
+    )
+    build.add_argument(
+        "--generator-availability",
+        type=Path,
+        default=None,
+        help="Optional timestamped CSV with one availability-fraction column per generator_id.",
+    )
+    build.add_argument(
+        "--gridfinder-lines",
+        type=Path,
+        default=None,
+        help="Optional GridFinder vector line file for source=inferred.",
+    )
+    build.add_argument(
+        "--osm-distribution-lines",
+        type=Path,
+        default=None,
+        help="Optional OSM distribution vector line file for source=inferred.",
+    )
+    build.add_argument(
+        "--no-pypsa-earth-osm-fallback",
+        action="store_true",
+        help="Do not fall back to the local PyPSA-Earth OSM line extraction.",
+    )
+    build.add_argument(
+        "--allow-provisional-demand",
+        action="store_true",
+        help=(
+            "For source=inferred only, use monthly_peak_demand_mw.csv as a "
+            "one-snapshot structural demand profile when demand_profile.csv is absent."
+        ),
+    )
+    build.add_argument("--max-anchor-distance-m", type=float, default=500)
+    build.add_argument("--inferred-voltage-kv", type=float, default=11)
+    build.add_argument("--inferred-capacity-mva", type=float, default=5)
+    build.add_argument("--value-of-lost-load", type=float, default=10_000)
+    build.set_defaults(func=_build_network)
 
     run = subparsers.add_parser("run-interruptions")
     run.add_argument(

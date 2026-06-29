@@ -3,7 +3,7 @@
 Use the repository `.venv` kernel. The notebooks are split by modelling
 purpose, not just by data source.
 
-## `asset_model/`
+## `interruption_model/`
 
 Main notebooks for the Mauritius fixed-capacity interruption workflow. Run them
 in numeric order after placing collaborator data under `data/0-incoming` or an

@@ -76,7 +76,7 @@ Standalone run path:
 
 1. install the package with `pip install -e .`;
 2. run `python -m mu_star_energy.cli prepare-assets`;
-3. review and complete `existing_generators.csv`, `existing_lines.csv`,
+3. review and complete `generators.csv`, `lines.csv`,
    `demand_profile.csv`, and `service_weights.csv` under
    `data/1-processed/energy/collaborator`;
 4. build a PyPSA network with `build_operational_network(...)`;
@@ -89,6 +89,8 @@ Standalone run path:
   templates.
 - `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
   lines, generators, demand and service weights.
+- `network_source.py`: builds saved `base` and `inferred` PyPSA network
+  handoff files from named source paths.
 - `model.py`: applies disruptions to a copied network, optimises supply and
   returns standard supply metrics.
 - `damage.py`: converts asset damage fractions into usable asset fractions for
@@ -121,7 +123,7 @@ The asset model does not currently import PyPSA-Earth files automatically.
 PyPSA-Earth data are optional supporting inputs, not the default source of
 existing assets or capacities.
 
-Current asset-model preparation produces:
+Current interruption-model preparation produces:
 
 - 18 provisional substations;
 - six vector transmission-route records;
@@ -138,6 +140,15 @@ wind and solar generators can receive an optional availability profile, but the
 workflow does not yet create those profiles automatically from PyPSA-Earth
 weather files. Without a supplied availability table, every non-damaged
 generator is available up to its full installed capacity in every time step.
+Every interruption run writes `demand_summary.csv` with system-level and
+substation-level profile demand, annualized demand, peak demand and load
+factor for validation.
+`build-network inferred --allow-provisional-demand` currently writes a
+structural inferred-network handoff at
+`data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
+line extraction fallback when no cached GridFinder/OSM distribution file is
+present. The reviewed `base` network is still blocked until `lines.csv`,
+`generators.csv` and `demand_profile.csv` are supplied.
 
 ## Data Stages
 
@@ -232,7 +243,7 @@ named sensitivity sets for assumed feeder capacities and impedances.
 
 ## Notebook Separation
 
-Primary asset-model notebooks:
+Primary interruption-model notebooks:
 
 1. `00_data_intake.ipynb` reads the collaborator files, lists the records found,
    shows substation snap distances and identifies missing power-station
@@ -242,7 +253,7 @@ Primary asset-model notebooks:
 
 The line geometry does not identify the two endpoint substations for
 each electrical circuit. The repository therefore does not convert mapped
-routes into model connections. `existing_lines.csv` will be the model input
+routes into model connections. `lines.csv` will be the model input
 once endpoint and engineering data are available from an agreed source.
 
 The current `PowerGrid.shp` contains six route records, expanded into 27 line
@@ -284,7 +295,7 @@ generated from the GEGIS demand dataset using:
 - a scale factor of 1;
 - GDP and population to divide national demand between regions.
 
-Before any asset-model calibration, the eight columns total about 4.55 TWh for
+Before any interruption-model calibration, the eight columns total about 4.55 TWh for
 the year and have a combined peak of about 643 MW. These are modelled values,
 not observed CEB demand. The columns use PyPSA-Earth region IDs (`0` to `7`),
 not the asset model's substation IDs (`SUB_001`, etc.).
@@ -293,7 +304,7 @@ Possible use in the asset model:
 
 1. add the eight columns to create one Mauritius-wide hourly shape;
 2. calibrate that shape to agreed CEB annual demand and peak information;
-3. divide the national profile between asset-model substations using reviewed
+3. divide the national profile between interruption-model substations using reviewed
    demand shares.
 
 This would be a temporary estimated profile, not observed CEB hourly demand.
@@ -362,10 +373,10 @@ automatically overwrite collaborator or CEB records.
 - Show the snap-distance table prominently in the intake notebook. Most points
   move less than 75 m, while `SUB_014` moves about 301 m because the source map
   is coarse.
-- Complete `existing_lines.csv` from CEB records, identifying the endpoint
+- Complete `lines.csv` from CEB records, identifying the endpoint
   substations for each line or transformer.
 - Add voltage, circuit count and maximum power for lines and transformers.
-- Complete `existing_generators.csv` with installed capacity, fuel or
+- Complete `generators.csv` with installed capacity, fuel or
   technology, running cost, efficiency, status and connected substation.
 - Decide the model year and document whether each input represents that year.
 - Replace equal demand shares with reviewed substation shares where evidence is
@@ -377,9 +388,9 @@ normal demand without using the emergency unmet-demand option.
 ### Priority 2: integrate demand over time
 
 - The `run-interruptions` command now reads `demand_profile.csv`, checks
-  timestamps, missing values and time-step length, and uses it in baseline and
-  outage runs. Add a separate demand-summary report for annual demand, peak and
-  load factor.
+  timestamps, missing values and time-step length, uses it in baseline and
+  outage runs, and writes a demand-summary report for annualized demand, peak
+  and load factor.
 - Add a preparation option for observed CEB hourly or half-hourly data.
 - Add an optional PyPSA-Earth fallback that:
   - reads the eight-region 2013 profile;
@@ -388,7 +399,7 @@ normal demand without using the emergency unmet-demand option.
     calibration targets;
   - adjusts the shape explicitly if both annual and peak targets are matched;
   - records the source year and scaling method;
-  - writes the standard asset-model `demand_profile.csv`.
+  writes the standard interruption-model `demand_profile.csv`.
 - Decide whether one fixed substation share is adequate or whether demand
   shares should vary by hour or customer sector.
 - Add checks comparing the processed profile with CEB monthly peaks, annual
@@ -411,7 +422,7 @@ data/1-processed/energy/collaborator/
 - Match each existing solar and wind generator to a PyPSA-Earth weather region
   using its coordinates and technology.
 - Use PyPSA-Earth hourly `profile` values, but retain CEB installed capacity
-  from `existing_generators.csv`.
+  from `generators.csv`.
 - Add source and weather-year information for every assigned profile.
 - Develop separate assumptions for:
   - hydro, preferably using CEB generation or water data;
@@ -439,21 +450,27 @@ data/1-processed/energy/collaborator/
 - Snakemake now has rules for baseline and disruption runs; remaining work is
   to add profile-preparation rules when observed demand or weather-derived
   generator profiles are available.
-- Add a third asset-model notebook that reviews demand, generation profiles and
+- Add a third interruption-model notebook that reviews demand, generation profiles and
   the normal-operation result without mixing it with data intake.
 
 ### Priority 4a: inferred distribution-network experiment
 
 - `prepare-inferred-distribution --enable-inferred-distribution` builds a
   labelled topology-only graph from GridFinder and OSM distribution lines.
-- Graph nodes and edges are written under
-  `data/1-processed/energy/inferred_distribution/`.
+- `build-network inferred` now converts that graph style into a fixed-capacity
+  PyPSA network handoff. The current local generated `inferred.nc` uses
+  provisional one-snapshot peak demand and contains no reviewed physical
+  generators, so smoke-test optimisation sheds all demand by design.
+- The standalone graph command writes nodes and edges under
+  `data/1-processed/energy/inferred_distribution/`; the saved-network builder
+  writes its graph tables beside the handoff network under
+  `data/1-processed/energy/networks/inferred_distribution/`.
 - Stage A is connectivity only: remove failed substations or feeder edges and
   count proxy demand disconnected from every reviewed substation root.
 - Stage B remains future work: distribution power flow needs transformer-table
   support, separate voltage-level buses and named sensitivity sets for feeder
   capacity and impedance.
-- Keep these outputs out of `existing_lines.csv` and out of the reviewed
+- Keep these outputs out of `lines.csv` and out of the reviewed
   baseline unless a future review explicitly promotes specific assets.
 
 ### Priority 5: validate the model

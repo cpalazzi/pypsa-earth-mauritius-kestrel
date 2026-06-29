@@ -12,6 +12,7 @@ dependencies = [
     "geopandas>=1",
     "networkx>=3",
     "numpy",
+    "osmnx>=2",
     "pandas>=2",
     "pyarrow",
     "pypsa>=0.30,<0.31",

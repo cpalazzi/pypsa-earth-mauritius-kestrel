@@ -22,7 +22,7 @@ assets are unavailable. The current reviewed tables describe the existing
 Mauritius system, but the same interface can be given a future system if those
 assets are supplied explicitly. This is the primary project work. The code is
 under `src/mu_star_energy/`; the guided review notebooks are under
-`notebooks/asset_model/`.
+`notebooks/interruption_model/`.
 
 ```text
 collaborator and open source data
@@ -69,7 +69,7 @@ cases are optional comparisons.
 ├── config/damage_curves/        # How physical damage affects each asset type
 ├── workflow/                    # Automated data-preparation steps
 ├── notebooks/
-│   ├── asset_model/             # Prepare and check the fixed-capacity model
+│   ├── interruption_model/      # Prepare and check the interruption model
 │   └── pypsa_earth/             # Explore open-data and future-system runs
 ├── data/
 │   ├── 0-incoming/              # Collaborator and downloaded source files
@@ -205,7 +205,7 @@ Open the notebooks in this order:
 2. `01_operational_network.ipynb` plots the routes with their snapped
    substations and estimates how demand is shared between substations. Snapping
    aligns the points geographically; electrical connections come from
-   `existing_lines.csv`, not from route proximity.
+   `lines.csv`, not from route proximity.
 3. `02_interruption_analysis.ipynb` loads the generators, lines and demand,
    builds the fixed-capacity network, runs normal operation and then outage
    cases. It demonstrates the mu-star handoff from asset damage to the
@@ -227,16 +227,16 @@ filled when the source columns or labels state them. The separate
 `network_map_2025.png` is a reference image and is not used to construct
 topology.
 
-Add `existing_lines.csv` only when those electrical connections are available
+Add `lines.csv` only when those electrical connections are available
 from CEB records or another agreed source. The operational model does not
 create connections from route proximity.
 
 Information to prepare before interruption simulation:
 
 - a unique ID, name and voltage for each substation;
-- `existing_lines.csv`, with endpoint substations, voltage, length, circuit
+- `lines.csv`, with endpoint substations, voltage, length, circuit
   count and maximum power for each transmission line or transformer;
-- `existing_generators.csv`, based on the generated register template, with
+- `generators.csv`, based on the generated register template, with
   `generator_id`, `bus_id`, `carrier`, `capacity_mw`, and `marginal_cost`
   populated and supported by CEB or other technical sources;
 - a dated `demand_profile.csv` showing electricity demand over time;
@@ -259,6 +259,32 @@ shared between substations using `service_weights.csv`, or one complete column
 per `bus_id`. Its first column must contain readable dates and times. A service
 weight is simply the share of total demand assigned to a substation; all shares
 must add to one.
+
+### 4. Build saved network handoff files
+
+The network stage writes PyPSA `.nc` files that interruption analysis can load
+without rebuilding source tables:
+
+```bash
+.venv/bin/python -m mu_star_energy.cli build-network base
+```
+
+The reviewed `base` source requires `lines.csv`, `generators.csv`,
+`demand_profile.csv`, `service_weights.csv`, and
+`snapped_substations.parquet`. It fails rather than estimating missing line
+endpoints, ratings or generator capacities.
+
+An explicitly inferred structural network can be built separately:
+
+```bash
+.venv/bin/python -m mu_star_energy.cli build-network inferred \
+  --allow-provisional-demand
+```
+
+This writes `data/1-processed/energy/networks/inferred.nc` and labelled graph
+tables under `data/1-processed/energy/networks/inferred_distribution/`. The
+provisional-demand flag is only for structural testing before a reviewed demand
+profile exists.
 
 ### Current demand-profile support
 
@@ -298,10 +324,14 @@ Omit `--disruptions` for a baseline-only run. Add
 `--generator-availability generator_availability.csv` when a timestamped table
 of availability fractions is available, with one column per `generator_id`.
 
+Each run writes `demand_summary.csv` under `data/2-out/energy/`. It reports
+profile demand, annualized demand, peak demand, average demand, duration and
+load factor for the whole system and for each substation load.
+
 An hourly profile remains the simplest starting point, but it is not a
 technical requirement.
 
-### 4. Run outage cases
+### 5. Run outage cases
 
 Once the required inputs are complete, build a PyPSA model that cannot add new
 assets and call:
@@ -370,7 +400,7 @@ Build the inferred layer only when deliberately requested:
 
 This writes labelled review tables under
 `data/1-processed/energy/inferred_distribution/`. These tables are inferred
-connectivity inputs and are not merged into `existing_lines.csv`.
+connectivity inputs and are not merged into `lines.csv`.
 
 ## PyPSA-Earth Comparisons
 

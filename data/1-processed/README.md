@@ -17,17 +17,22 @@ data/1-processed/energy/
     generation_register_template.csv
     monthly_peak_demand_mw.csv
     annual_sector_demand_gwh.csv
-  inferred_distribution/
-    inferred_distribution_nodes.csv
-    inferred_distribution_edges.csv
-    inferred_distribution_metadata.json
+  networks/
+    base.nc
+    base_metadata.json
+    inferred.nc
+    inferred_metadata.json
+    inferred_distribution/
+      inferred_distribution_nodes.csv
+      inferred_distribution_edges.csv
+      inferred_distribution_metadata.json
 ```
 
 Files required before the model can calculate electricity supply:
 
-- `existing_lines.csv`, with `line_id`, `bus0`, `bus1`, `v_nom_kv`,
+- `lines.csv`, with `line_id`, `bus0`, `bus1`, `v_nom_kv`,
   `length_km`, and `s_nom_mva`;
-- `existing_generators.csv` with populated `generator_id`, `bus_id`, `carrier`,
+- `generators.csv` with populated `generator_id`, `bus_id`, `carrier`,
   `capacity_mw`, and `marginal_cost`;
 - `demand_profile.csv`, with dates and times, containing either one system-wide
   `demand_mw` column or one complete demand column per substation;
@@ -67,7 +72,7 @@ The current network builder creates AC lines but does not yet read a separate
 transformer register. Mixed voltage levels therefore require a later
 transformer extension rather than being combined into one bus.
 
-Add `source_route_id` to `existing_lines.csv` when a reviewed electrical line
+Add `source_route_id` to `lines.csv` when a reviewed electrical line
 can be linked to a route in `transmission_routes.parquet`. The network map uses
 this optional field to display reviewed kV and MVA values on the corresponding
 route. Without it, the table remains usable by the model but cannot be placed
@@ -79,7 +84,7 @@ profiles are supported; the model sets the time-step duration from the
 timestamp spacing. The same timestamp convention is used by
 `generator_availability.csv` when supplied.
 
-Copy `generation_register_template.csv` to `existing_generators.csv`, then
+Copy `generation_register_template.csv` to `generators.csv`, then
 review and complete it rather than editing generated Parquet outputs by hand.
 Keep the same generator IDs. Include the source and a short note for any value
 that you add or correct manually.
@@ -89,8 +94,8 @@ mapping and comparison. It includes `v_nom_kv`, `capacity_mw`, and
 `capacity_unit` columns so explicit source voltage or MW line-rating values can
 be carried through when present. These fields remain blank when the supplied
 route data do not state them. The route geometry is not converted into
-`existing_lines.csv` because the source attributes do not identify electrical
-endpoint substations or complete line ratings. Add `existing_lines.csv` when
+`lines.csv` because the source attributes do not identify electrical
+endpoint substations or complete line ratings. Add `lines.csv` when
 those data are available from an agreed source.
 
 `substations.parquet` preserves the source point coordinates.
@@ -102,5 +107,7 @@ Every substation is snapped. The 75 m warning used in the intake notebook only
 highlights movements for attention; it does not exclude a point.
 
 The optional `inferred_distribution/` files are produced only by the explicit
-inferred scenario command. They are connectivity-only GridFinder/OSM graph
-tables for review and are not confirmed electrical line assets.
+inferred network build. They are connectivity-only GridFinder/OSM graph tables
+for review and are not confirmed electrical line assets. `inferred.nc` is a
+PyPSA handoff artifact for structural testing; it remains inferred and separate
+from the reviewed `base.nc` network.

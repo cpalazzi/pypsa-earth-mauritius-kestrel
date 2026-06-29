@@ -80,6 +80,9 @@ def _add_distribution_lines(
         start, end = _line_endpoints(row.geometry)
         start_node = _node_key(*start)
         end_node = _node_key(*end)
+        length_km = float(row.geometry.length / 1000)
+        if start_node == end_node or length_km <= 0:
+            continue
         graph.add_node(
             start_node,
             kind="distribution_node",
@@ -102,7 +105,6 @@ def _add_distribution_lines(
             if end_node in graph
             else 0.0,
         )
-        length_km = float(row.geometry.length / 1000)
         graph.add_edge(
             start_node,
             end_node,

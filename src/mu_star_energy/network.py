@@ -70,6 +70,7 @@ def build_operational_network(
     *,
     generator_availability: pd.DataFrame | None = None,
     value_of_lost_load: float = 10_000,
+    line_resistance_ohm_per_km: float = 0.01,
     line_reactance_ohm_per_km: float = 0.4,
 ) -> pypsa.Network:
     """Build a time-series supply model using only existing assets.
@@ -154,6 +155,7 @@ def build_operational_network(
             raise ValueError("Generator availability values must lie between zero and one")
 
     network = pypsa.Network()
+    network.add("Carrier", "AC")
     time_step_hours = _time_step_hours(demand_profile.index)
     network.set_snapshots(demand_profile.index)
     network.snapshot_weightings.loc[:, :] = time_step_hours
@@ -177,10 +179,11 @@ def build_operational_network(
             str(row["line_id"]),
             bus0=str(row["bus0"]),
             bus1=str(row["bus1"]),
+            carrier="AC",
             length=float(row["length_km"]),
             s_nom=float(row["s_nom_mva"]),
             s_nom_extendable=False,
-            r=0.0,
+            r=max(float(row["length_km"]) * line_resistance_ohm_per_km, 1e-6),
             x=max(float(row["length_km"]) * line_reactance_ohm_per_km, 1e-6),
         )
 

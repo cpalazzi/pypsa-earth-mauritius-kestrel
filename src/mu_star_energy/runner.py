@@ -16,6 +16,7 @@ from mu_star_energy.network import build_operational_network
 
 @dataclass(frozen=True)
 class RunOutputs:
+    demand_summary: Path
     summary_metrics: Path
     baseline_metrics: Path
     baseline_unserved: Path
@@ -66,6 +67,63 @@ def _metrics_frame(rows: list[tuple[str, SimulationResult]]) -> pd.DataFrame:
     ).set_index("case")
 
 
+def _summarize_demand_series(
+    *,
+    scope: str,
+    demand_mw: pd.Series,
+    weights: pd.Series,
+    duration_hours: float,
+) -> dict[str, float | int | str]:
+    energy_mwh = float(demand_mw.mul(weights, axis=0).sum())
+    peak_mw = float(demand_mw.max()) if not demand_mw.empty else 0.0
+    average_mw = energy_mwh / duration_hours if duration_hours else 0.0
+    return {
+        "scope": scope,
+        "snapshot_count": int(demand_mw.size),
+        "duration_hours": duration_hours,
+        "profile_demand_mwh": energy_mwh,
+        "annualized_demand_mwh": average_mw * 8760,
+        "peak_demand_mw": peak_mw,
+        "average_demand_mw": average_mw,
+        "load_factor": average_mw / peak_mw if peak_mw else 0.0,
+    }
+
+
+def _demand_summary_frame(network) -> pd.DataFrame:
+    demand = network.get_switchable_as_dense("Load", "p_set").reindex(
+        network.snapshots
+    )
+    weights = network.snapshot_weightings.generators.reindex(network.snapshots).fillna(1.0)
+    duration_hours = float(weights.sum())
+
+    load_to_bus = network.loads["bus"].reindex(demand.columns)
+    demand_by_bus = demand.rename(columns=load_to_bus.to_dict())
+    demand_by_bus = demand_by_bus.T.groupby(level=0).sum().T
+
+    rows = [
+        _summarize_demand_series(
+            scope="system",
+            demand_mw=demand_by_bus.sum(axis=1),
+            weights=weights,
+            duration_hours=duration_hours,
+        )
+    ]
+    rows.extend(
+        _summarize_demand_series(
+            scope=f"bus::{bus_id}",
+            demand_mw=demand_by_bus[bus_id],
+            weights=weights,
+            duration_hours=duration_hours,
+        )
+        for bus_id in sorted(demand_by_bus.columns.astype(str))
+    )
+    return pd.DataFrame(rows).set_index("scope")
+
+
+def _write_demand_summary(path: Path, network) -> None:
+    _demand_summary_frame(network).to_csv(path)
+
+
 def _write_metrics(path: Path, result: SimulationResult) -> None:
     path.write_text(json.dumps(result.metrics, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -112,8 +170,8 @@ def run_interruption_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
-    lines = pd.read_csv(input_dir / "existing_lines.csv")
-    generators = pd.read_csv(input_dir / "existing_generators.csv")
+    lines = pd.read_csv(input_dir / "lines.csv")
+    generators = pd.read_csv(input_dir / "generators.csv")
     demand = read_time_series_csv(input_dir / "demand_profile.csv", label="demand_profile")
     service_weights = pd.read_csv(input_dir / "service_weights.csv")
     generator_availability = (
@@ -131,6 +189,9 @@ def run_interruption_analysis(
         generator_availability=generator_availability,
         value_of_lost_load=value_of_lost_load,
     )
+    demand_summary = output_dir / "demand_summary.csv"
+    _write_demand_summary(demand_summary, network)
+
     model = EnergyModel(solver_name=solver_name)
 
     baseline = model.simulate(network, [])
@@ -170,6 +231,7 @@ def run_interruption_analysis(
     summary_metrics = output_dir / "summary_metrics.csv"
     _metrics_frame(rows).to_csv(summary_metrics)
     return RunOutputs(
+        demand_summary=demand_summary,
         summary_metrics=summary_metrics,
         baseline_metrics=baseline_metrics,
         baseline_unserved=baseline_unserved,

@@ -1,13 +1,65 @@
 """Electricity supply calculations during asset outages."""
 
-rule run_energy_baseline:
+rule build_base_network:
     input:
         buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        lines=f"{PROCESSED_ENERGY}/existing_lines.csv",
-        generators=f"{PROCESSED_ENERGY}/existing_generators.csv",
+        lines=f"{PROCESSED_ENERGY}/lines.csv",
+        generators=f"{PROCESSED_ENERGY}/generators.csv",
         demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
         service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
     output:
+        network=f"{NETWORKS_ENERGY}/base.nc",
+        metadata=f"{NETWORKS_ENERGY}/base_metadata.json",
+    params:
+        input_dir=PROCESSED_ENERGY,
+        output_dir=NETWORKS_ENERGY,
+        value_of_lost_load=VALUE_OF_LOST_LOAD,
+    shell:
+        """
+        .venv/bin/python -m mu_star_energy.cli build-network base \
+          --input-dir {params.input_dir} \
+          --output-dir {params.output_dir} \
+          --value-of-lost-load {params.value_of_lost_load}
+        """
+
+rule build_inferred_network:
+    input:
+        buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
+        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
+        monthly_peak=f"{PROCESSED_ENERGY}/monthly_peak_demand_mw.csv",
+    output:
+        network=f"{NETWORKS_ENERGY}/inferred.nc",
+        metadata=f"{NETWORKS_ENERGY}/inferred_metadata.json",
+        nodes=f"{NETWORKS_ENERGY}/inferred_distribution/inferred_distribution_nodes.csv",
+        edges=f"{NETWORKS_ENERGY}/inferred_distribution/inferred_distribution_edges.csv",
+        graph_metadata=(
+            f"{NETWORKS_ENERGY}/inferred_distribution/"
+            "inferred_distribution_metadata.json"
+        ),
+    params:
+        input_dir=PROCESSED_ENERGY,
+        output_dir=NETWORKS_ENERGY,
+        value_of_lost_load=VALUE_OF_LOST_LOAD,
+        max_anchor_distance_m=1000,
+    shell:
+        """
+        .venv/bin/python -m mu_star_energy.cli build-network inferred \
+          --input-dir {params.input_dir} \
+          --output-dir {params.output_dir} \
+          --allow-provisional-demand \
+          --max-anchor-distance-m {params.max_anchor_distance_m} \
+          --value-of-lost-load {params.value_of_lost_load}
+        """
+
+rule run_energy_baseline:
+    input:
+        buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
+        lines=f"{PROCESSED_ENERGY}/lines.csv",
+        generators=f"{PROCESSED_ENERGY}/generators.csv",
+        demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
+        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
+    output:
+        demand_summary=f"{OUTPUT_ENERGY}/demand_summary.csv",
         summary=f"{OUTPUT_ENERGY}/summary_metrics.csv",
         metrics=f"{OUTPUT_ENERGY}/baseline_metrics.json",
         unserved=f"{OUTPUT_ENERGY}/baseline_unserved_energy_mwh_by_substation.csv",
@@ -29,8 +81,8 @@ rule run_energy_baseline:
 rule run_energy_outage:
     input:
         buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        lines=f"{PROCESSED_ENERGY}/existing_lines.csv",
-        generators=f"{PROCESSED_ENERGY}/existing_generators.csv",
+        lines=f"{PROCESSED_ENERGY}/lines.csv",
+        generators=f"{PROCESSED_ENERGY}/generators.csv",
         demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
         service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
         disruptions=f"{PROCESSED_ENERGY}/disruptions.csv",
