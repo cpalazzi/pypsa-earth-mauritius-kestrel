@@ -10,7 +10,7 @@ Run these folders in order after placing collaborator data under
 
 1. `00-data-review/` cleans and reviews source data. It does not build a model.
 2. `01-build-network/` chooses `source = "base"` or `"inferred"` and writes a saved
-   PyPSA network handoff under `data/1-processed/energy/networks/`.
+   PyPSA network under `data/1-processed/energy/networks/`.
 3. `02-interruption-analysis/` loads a saved network and runs baseline/outage cases.
 
 Line capacities and generator details for `source = "base"` come from reviewed

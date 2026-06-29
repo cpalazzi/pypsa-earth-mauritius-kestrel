@@ -1,6 +1,6 @@
 # Interruption-analysis notebooks
 
-Purpose: load a saved PyPSA network handoff, run baseline operation, apply
+Purpose: load a saved PyPSA network, run baseline operation, apply
 disruptions and write interruption metrics.
 
 Inputs:

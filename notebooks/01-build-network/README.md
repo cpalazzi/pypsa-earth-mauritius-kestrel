@@ -1,7 +1,9 @@
 # Build-network notebooks
 
 Purpose: review network inputs, choose `source = "base"` or `"inferred"` and
-write a saved PyPSA network handoff under `data/1-processed/energy/networks/`.
+build and save a PyPSA network under `data/1-processed/energy/networks/`.
+Notebooks: `00_build_network.ipynb`, and `01_demand_settings.ipynb` (draft) for
+the demand profile.
 
 Inputs:
 
@@ -18,6 +20,6 @@ Outputs:
   structural scenarios;
 - matching metadata JSON and inferred graph review tables.
 
-Settings users may change: `NETWORK_SOURCE`, `ALLOW_PROVISIONAL_DEMAND`,
-anchor distance and inferred voltage/capacity assumptions. Provisional demand
-is only for structural inferred-network tests.
+Settings users may change: `NETWORK_SOURCE`, anchor distance and inferred
+voltage/capacity assumptions. Demand handling (including the provisional
+fallback for `inferred`) lives in `01_demand_settings.ipynb` (draft).

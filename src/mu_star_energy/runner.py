@@ -174,7 +174,7 @@ def run_interruption_analysis(
     if network_path is not None:
         if generator_availability_path is not None:
             raise ValueError(
-                "Generator availability is baked into saved network handoff files; "
+                "Generator availability is baked into saved network files; "
                 "rebuild the network instead of passing generator_availability."
             )
         network = pypsa.Network(network_path)

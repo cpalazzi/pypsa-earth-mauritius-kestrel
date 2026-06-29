@@ -90,7 +90,7 @@ Standalone run path:
 - `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
   lines, generators, demand and service weights.
 - `network_source.py`: builds saved `base` and `inferred` PyPSA network
-  handoff files from named source paths.
+  saved network files from named source paths.
 - `model.py`: applies disruptions to a copied network, optimises supply and
   returns standard supply metrics.
 - `damage.py`: converts asset damage fractions into usable asset fractions for
@@ -134,8 +134,8 @@ Current interruption-model preparation produces:
   distribution file has yet been added.
 
 The Python network builder and CLI can use demand that changes over time.
-`build-network` writes the saved PyPSA handoff; `run-interruptions` can load
-that handoff with `--network` / `--network-source`, run a baseline case and run
+`build-network` writes the saved PyPSA network; `run-interruptions` can load
+that saved network with `--network` / `--network-source`, run a baseline case and run
 an outage case from a disruption table. Existing wind and solar generators can
 receive an optional availability profile during network build, but the
 workflow does not yet create those profiles automatically from PyPSA-Earth
@@ -145,7 +145,7 @@ Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
 factor for validation.
 `build-network inferred --allow-provisional-demand` currently writes a
-structural inferred-network handoff at
+structural inferred network at
 `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
 line extraction fallback when no cached GridFinder/OSM distribution file is
 present. The reviewed `base` network is still blocked until `lines.csv`,
@@ -251,7 +251,7 @@ Primary interruption-model notebooks:
    power-station information. It does not build a model.
 2. `01-build-network/00_build_network.ipynb` displays the routes and snapped
    substations, estimates how demand is shared, lists missing model inputs and
-   calls `build_network(source=...)` to write a saved PyPSA network handoff.
+   calls `build_network(source=...)` to write a saved PyPSA network.
 3. `02-interruption-analysis/00_interruption_analysis.ipynb` loads a saved
    `networks/<source>.nc` file and runs baseline/outage cases without
    rebuilding source-specific network inputs.
@@ -448,7 +448,7 @@ data/1-processed/energy/collaborator/
 
 - The `build-network` command builds the final PyPSA network from cleaned
   buses, lines, generators, demand and optional generation profiles.
-- The `run-interruptions` command loads a saved network handoff with
+- The `run-interruptions` command loads a saved network with
   `--network` / `--network-source`, with CSV rebuilding retained only as a
   fallback.
 - It runs normal operation before applying damage.
@@ -466,12 +466,12 @@ data/1-processed/energy/collaborator/
 - `prepare-inferred-distribution --enable-inferred-distribution` builds a
   labelled topology-only graph from GridFinder and OSM distribution lines.
 - `build-network inferred` now converts that graph style into a fixed-capacity
-  PyPSA network handoff. The current local generated `inferred.nc` uses
+  PyPSA network. The current local generated `inferred.nc` uses
   provisional one-snapshot peak demand and contains no reviewed physical
   generators, so smoke-test optimisation sheds all demand by design.
 - The standalone graph command writes nodes and edges under
   `data/1-processed/energy/inferred_distribution/`; the saved-network builder
-  writes its graph tables beside the handoff network under
+  writes its graph tables beside the saved network network under
   `data/1-processed/energy/networks/inferred_distribution/`.
 - Stage A is connectivity only: remove failed substations or feeder edges and
   count proxy demand disconnected from every reviewed substation root.

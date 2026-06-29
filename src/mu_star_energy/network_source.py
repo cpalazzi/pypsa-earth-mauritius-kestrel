@@ -1,4 +1,4 @@
-"""Build saved PyPSA network handoff artifacts from named input sources."""
+"""Build and save PyPSA networks from named input sources (base or inferred)."""
 
 from __future__ import annotations
 

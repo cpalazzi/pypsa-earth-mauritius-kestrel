@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=processed_energy_dir() / "networks",
-        help="Folder where saved network handoff files are written.",
+        help="Folder where saved network files are written.",
     )
     build.add_argument(
         "--generator-availability",
@@ -188,7 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--network",
         type=Path,
         default=None,
-        help="Optional saved PyPSA .nc handoff file to load instead of rebuilding from CSVs.",
+        help="Optional saved PyPSA .nc network file to load instead of rebuilding from CSVs.",
     )
     network_selector.add_argument(
         "--network-source",
