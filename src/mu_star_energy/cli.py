@@ -1,5 +1,5 @@
 """Command-line entry points for asset preparation, interruption runs and the
-synthetic distribution experiment."""
+inferred distribution experiment."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from pathlib import Path
 import geopandas as gpd
 
 from mu_star_energy.distribution_network import (
-    build_synthetic_distribution_graph,
-    write_synthetic_distribution_tables,
+    build_inferred_distribution_graph,
+    write_inferred_distribution_tables,
 )
 from mu_star_energy.intake import prepare_collaborator_data
 from mu_star_energy.paths import incoming_energy_dir, output_energy_dir, processed_energy_dir
@@ -53,25 +53,25 @@ def _read_optional_vector(path: Path | None):
     return gpd.read_file(path)
 
 
-def _prepare_synthetic_distribution(args: argparse.Namespace) -> None:
-    if not args.enable_synthetic_distribution:
+def _prepare_inferred_distribution(args: argparse.Namespace) -> None:
+    if not args.enable_inferred_distribution:
         raise SystemExit(
-            "Pass --enable-synthetic-distribution to build the labelled synthetic layer."
+            "Pass --enable-inferred-distribution to build the labelled inferred layer."
         )
     substations = gpd.read_parquet(args.substations)
     gridfinder_lines = _read_optional_vector(args.gridfinder_lines)
     osm_distribution_lines = _read_optional_vector(args.osm_distribution_lines)
     if gridfinder_lines is None and osm_distribution_lines is None:
         raise FileNotFoundError(
-            "No GridFinder or OSM distribution line file was found for the synthetic layer"
+            "No GridFinder or OSM distribution line file was found for the inferred layer"
         )
-    graph = build_synthetic_distribution_graph(
+    graph = build_inferred_distribution_graph(
         substations,
         gridfinder_lines=gridfinder_lines,
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=args.max_anchor_distance_m,
     )
-    outputs = write_synthetic_distribution_tables(graph, args.output_dir)
+    outputs = write_inferred_distribution_tables(graph, args.output_dir)
     print(json.dumps({key: str(value) for key, value in outputs.__dict__.items()}, indent=2))
 
 
@@ -124,34 +124,34 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--skip-network-export", action="store_true")
     run.set_defaults(func=_run_interruptions)
 
-    synthetic = subparsers.add_parser("prepare-synthetic-distribution")
-    synthetic.add_argument(
-        "--enable-synthetic-distribution",
+    inferred = subparsers.add_parser("prepare-inferred-distribution")
+    inferred.add_argument(
+        "--enable-inferred-distribution",
         action="store_true",
         help="Required safety flag; keeps GridFinder/OSM feeders outside the baseline.",
     )
-    synthetic.add_argument(
+    inferred.add_argument(
         "--substations",
         type=Path,
         default=processed_energy_dir() / "collaborator" / "snapped_substations.parquet",
     )
-    synthetic.add_argument(
+    inferred.add_argument(
         "--gridfinder-lines",
         type=Path,
         default=incoming_energy_dir() / "gridfinder" / "grid.gpkg",
     )
-    synthetic.add_argument(
+    inferred.add_argument(
         "--osm-distribution-lines",
         type=Path,
         default=incoming_energy_dir() / "osm" / "distribution_lines.parquet",
     )
-    synthetic.add_argument(
+    inferred.add_argument(
         "--output-dir",
         type=Path,
-        default=processed_energy_dir() / "synthetic_distribution",
+        default=processed_energy_dir() / "inferred_distribution",
     )
-    synthetic.add_argument("--max-anchor-distance-m", type=float, default=500)
-    synthetic.set_defaults(func=_prepare_synthetic_distribution)
+    inferred.add_argument("--max-anchor-distance-m", type=float, default=500)
+    inferred.set_defaults(func=_prepare_inferred_distribution)
     return parser
 
 

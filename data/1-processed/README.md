@@ -17,10 +17,10 @@ data/1-processed/energy/
     generation_register_template.csv
     monthly_peak_demand_mw.csv
     annual_sector_demand_gwh.csv
-  synthetic_distribution/
-    synthetic_distribution_nodes.csv
-    synthetic_distribution_edges.csv
-    synthetic_distribution_metadata.json
+  inferred_distribution/
+    inferred_distribution_nodes.csv
+    inferred_distribution_edges.csv
+    inferred_distribution_metadata.json
 ```
 
 Files required before the model can calculate electricity supply:
@@ -101,6 +101,6 @@ part and movement distance so coarse or questionable alignments remain visible.
 Every substation is snapped. The 75 m warning used in the intake notebook only
 highlights movements for attention; it does not exclude a point.
 
-The optional `synthetic_distribution/` files are produced only by the explicit
-synthetic scenario command. They are connectivity-only GridFinder/OSM graph
+The optional `inferred_distribution/` files are produced only by the explicit
+inferred scenario command. They are connectivity-only GridFinder/OSM graph
 tables for review and are not confirmed electrical line assets.

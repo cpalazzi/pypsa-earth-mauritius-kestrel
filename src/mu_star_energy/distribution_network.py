@@ -1,4 +1,4 @@
-"""Synthetic distribution-network graph experiments.
+"""Inferred distribution-network graph experiments.
 
 This module is deliberately separate from the reviewed transmission baseline.
 It supports a topology-only scenario: infer candidate feeders from GridFinder
@@ -22,7 +22,7 @@ METRIC_CRS = "EPSG:32740"
 
 
 @dataclass(frozen=True)
-class SyntheticDistributionOutputs:
+class InferredDistributionOutputs:
     nodes: Path
     edges: Path
     metadata: Path
@@ -83,7 +83,7 @@ def _add_distribution_lines(
         graph.add_node(
             start_node,
             kind="distribution_node",
-            synthetic=True,
+            inferred=True,
             source=source,
             x=start[0],
             y=start[1],
@@ -94,7 +94,7 @@ def _add_distribution_lines(
         graph.add_node(
             end_node,
             kind="distribution_node",
-            synthetic=True,
+            inferred=True,
             source=source,
             x=end[0],
             y=end[1],
@@ -108,13 +108,13 @@ def _add_distribution_lines(
             end_node,
             edge_id=f"{source}_{row_number:06d}",
             source=source,
-            synthetic=True,
+            inferred=True,
             stage="connectivity_only",
             length_km=length_km,
         )
 
 
-def build_synthetic_distribution_graph(
+def build_inferred_distribution_graph(
     substations: gpd.GeoDataFrame,
     *,
     gridfinder_lines: gpd.GeoDataFrame | None = None,
@@ -124,7 +124,7 @@ def build_synthetic_distribution_graph(
     """Build a labelled topology-only distribution graph.
 
     Reviewed substations are added as root nodes. GridFinder and OSM line
-    endpoints become synthetic distribution nodes. A substation is anchored to
+    endpoints become inferred distribution nodes. A substation is anchored to
     the nearest distribution node only when it lies within
     ``max_anchor_distance_m``.
     """
@@ -134,9 +134,9 @@ def build_synthetic_distribution_graph(
         raise ValueError("max_anchor_distance_m must be non-negative")
 
     graph = nx.Graph(
-        scenario="synthetic_distribution",
+        scenario="inferred_distribution",
         stage="connectivity_only",
-        synthetic=True,
+        inferred=True,
         max_anchor_distance_m=float(max_anchor_distance_m),
     )
     _add_distribution_lines(graph, gridfinder_lines, source="gridfinder")
@@ -149,7 +149,7 @@ def build_synthetic_distribution_graph(
         graph.add_node(
             bus_node,
             kind="substation",
-            synthetic=False,
+            inferred=False,
             bus_id=bus_id,
             x=float(row.geometry.x),
             y=float(row.geometry.y),
@@ -177,7 +177,7 @@ def build_synthetic_distribution_graph(
             nearest,
             edge_id=f"anchor::{bus_id}",
             source="substation_anchor",
-            synthetic=True,
+            inferred=True,
             stage="connectivity_only",
             length_km=distance_m / 1000,
         )
@@ -190,7 +190,7 @@ def assign_proxy_demand_to_graph(
     *,
     demand_column: str = "demand_mw",
 ) -> nx.Graph:
-    """Attach demand proxy values to the nearest synthetic distribution node."""
+    """Attach demand proxy values to the nearest inferred distribution node."""
     if demand_column not in demand_points.columns:
         raise ValueError(f"demand_points must contain {demand_column}")
     candidates = _distribution_nodes(graph)
@@ -257,7 +257,7 @@ def topology_disconnection_impacts(
                 "unserved_demand_mw": demand_mw,
                 "node_count": len(node_set),
                 "edge_count": edge_count,
-                "synthetic": True,
+                "inferred": True,
                 "stage": "connectivity_only",
             }
         )
@@ -268,16 +268,16 @@ def topology_disconnection_impacts(
             "unserved_demand_mw",
             "node_count",
             "edge_count",
-            "synthetic",
+            "inferred",
             "stage",
         ],
     )
 
 
-def write_synthetic_distribution_tables(
+def write_inferred_distribution_tables(
     graph: nx.Graph,
     output_dir: Path,
-) -> SyntheticDistributionOutputs:
+) -> InferredDistributionOutputs:
     """Write graph nodes, edges and metadata to CSV/JSON review files."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -291,19 +291,19 @@ def write_synthetic_distribution_tables(
     metadata = {
         "scenario": graph.graph.get("scenario"),
         "stage": graph.graph.get("stage"),
-        "synthetic": graph.graph.get("synthetic"),
+        "inferred": graph.graph.get("inferred"),
         "max_anchor_distance_m": graph.graph.get("max_anchor_distance_m"),
         "node_count": graph.number_of_nodes(),
         "edge_count": graph.number_of_edges(),
     }
 
-    node_path = output_dir / "synthetic_distribution_nodes.csv"
-    edge_path = output_dir / "synthetic_distribution_edges.csv"
-    metadata_path = output_dir / "synthetic_distribution_metadata.json"
+    node_path = output_dir / "inferred_distribution_nodes.csv"
+    edge_path = output_dir / "inferred_distribution_edges.csv"
+    metadata_path = output_dir / "inferred_distribution_metadata.json"
     nodes.to_csv(node_path, index=False)
     edges.to_csv(edge_path, index=False)
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
-    return SyntheticDistributionOutputs(
+    return InferredDistributionOutputs(
         nodes=node_path,
         edges=edge_path,
         metadata=metadata_path,

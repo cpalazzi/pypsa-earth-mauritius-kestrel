@@ -37,7 +37,7 @@ if its assets, demand and disruptions are supplied explicitly.
    - builds a fixed-capacity baseline network when the required files exist;
    - compares normal operation with outage cases and writes result tables under
      `data/2-out/energy/`;
-   - documents a staged, synthetic GridFinder distribution-network experiment.
+   - documents a staged, inferred GridFinder distribution-network experiment.
 
 ## User instructions
 
@@ -85,10 +85,10 @@ transformer support and explicit voltage, capacity and impedance sensitivity
 cases are added.
 
 The separate command
-`mu-star-energy prepare-synthetic-distribution --enable-synthetic-distribution`
+`mu-star-energy prepare-inferred-distribution --enable-inferred-distribution`
 builds that labelled topology-only graph when GridFinder or OSM distribution
 line files are available. Its outputs are written under
-`data/1-processed/energy/synthetic_distribution/` and must stay separate from
+`data/1-processed/energy/inferred_distribution/` and must stay separate from
 the reviewed `existing_lines.csv` register.
 
 For eventual delivery into `nismod/mu-star`, this package maps to

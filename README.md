@@ -354,22 +354,22 @@ distribution power flows. GridFinder routes are estimates, not observed
 infrastructure.
 
 The proposed extension is to keep this proxy in the baseline model and build a
-separate synthetic-distribution scenario. GridFinder routes would be split
+separate inferred-distribution scenario. GridFinder routes would be split
 into a graph, anchored to substations with documented distance thresholds and
 loaded using population or building data. The first experiment should model
 downstream disconnection only. Distribution power flow requires separate
 voltage-level buses, transformers and named sensitivity cases for uncertain
 feeder capacities and impedances.
 
-Build the synthetic layer only when deliberately requested:
+Build the inferred layer only when deliberately requested:
 
 ```bash
-.venv/bin/python -m mu_star_energy.cli prepare-synthetic-distribution \
-  --enable-synthetic-distribution
+.venv/bin/python -m mu_star_energy.cli prepare-inferred-distribution \
+  --enable-inferred-distribution
 ```
 
 This writes labelled review tables under
-`data/1-processed/energy/synthetic_distribution/`. These tables are synthetic
+`data/1-processed/energy/inferred_distribution/`. These tables are inferred
 connectivity inputs and are not merged into `existing_lines.csv`.
 
 ## PyPSA-Earth Comparisons

@@ -31,10 +31,10 @@ GridFinder and OSM line data can help estimate which areas may be served by
 each substation. They do not provide confirmed line capacities, voltages or
 other engineering details.
 
-The synthetic distribution-network command reads GridFinder from
+The inferred distribution-network command reads GridFinder from
 `energy/gridfinder/grid.gpkg` and OSM distribution lines from
 `energy/osm/distribution_lines.parquet` when those files exist. Keep a
-provider/source column in any replacement file so synthetic routes remain
+provider/source column in any replacement file so inferred routes remain
 distinguishable from reviewed CEB assets.
 
 You can change the main data location with `MU_STAR_DATA_ROOT` or add folders

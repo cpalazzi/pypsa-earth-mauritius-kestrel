@@ -12,7 +12,7 @@ public call `EnergyModel().simulate(network, disruptions)`.
 - Phase 2 (developer notes): done — delivery, schema and module map documented.
 - Phase 3 (runnable model): done — `run-interruptions` CLI + Snakemake rules
   consume `demand_profile.csv`; optional generator availability supported.
-- Phase 4 (synthetic distribution): done — `distribution_network.py` builds the
+- Phase 4 (inferred distribution): done — `distribution_network.py` builds the
   flagged GridFinder/OSM graph and downstream-disconnection impacts.
 - Phase 5 (validation + delivery) and real CEB data: outstanding.
 
@@ -72,7 +72,7 @@ Blocking gaps to close (already listed in DEVELOPMENT_NOTES priorities 1–4):
 ## Phase 4 — Distribution network draft (OpenGridFinder)
 
 Today `distribution.py` only assigns demand shares by nearest-line length. Add a
-SYNTHETIC distribution layer kept out of the reviewed baseline:
+INFERRED distribution layer kept out of the reviewed baseline:
 
 1. Ingest OpenGridFinder lines into `data/0-incoming/energy/gridfinder/`; keep a
    `source` column to separate GridFinder estimates from OSM/CEB.
@@ -84,8 +84,8 @@ SYNTHETIC distribution layer kept out of the reviewed baseline:
    when a bus/feeder is cut, count demand lost, no power flow.
 4. Stage B (later): power flow needs separate voltage buses + transformers and
    named sensitivity sets for feeder capacity/impedance. Gate behind a flag.
-5. Label everything `synthetic`; never merge into the CEB baseline. Add tests.
-6. Acceptance: a scenario flag builds the synthetic layer; baseline unchanged.
+5. Label everything `inferred`; never merge into the CEB baseline. Add tests.
+6. Acceptance: a scenario flag builds the inferred layer; baseline unchanged.
 
 ## Phase 5 — Validation & delivery prep
 
@@ -98,6 +98,6 @@ SYNTHETIC distribution layer kept out of the reviewed baseline:
 ## Guardrails
 
 - Never let the model build new capacity (`assert_fixed_capacity` must pass).
-- Don't add GridFinder/synthetic lines to the electrical calc as real assets.
+- Don't add GridFinder/inferred lines to the electrical calc as real assets.
 - Keep `EnergyModel.simulate(network, disruptions)` stable; clear notebook
   outputs before commit; keep source files in `0-incoming` unchanged.

@@ -94,9 +94,9 @@ Standalone run path:
 - `damage.py`: converts asset damage fractions into usable asset fractions for
   the energy model.
 - `distribution.py`: estimates substation demand shares from OSM/GridFinder
-  line-length proxies without adding synthetic feeders to the electrical
+  line-length proxies without adding inferred feeders to the electrical
   network.
-- `distribution_network.py`: builds the explicitly synthetic
+- `distribution_network.py`: builds the explicitly inferred
   GridFinder/OSM topology-only distribution graph and estimates downstream
   disconnection impacts.
 - `paths.py`: centralises repository and data-stage paths, including
@@ -225,7 +225,7 @@ GridFinder estimates possible routes from night-time lights and roads. Keep a
 and CEB data.
 
 For a distribution-network experiment, keep GridFinder routes out of the
-reviewed baseline and label the alternative topology as synthetic. Start with
+reviewed baseline and label the alternative topology as inferred. Start with
 graph connectivity and downstream demand disconnection. Distribution
 power-flow cases require separate voltage-level buses and transformers, plus
 named sensitivity sets for assumed feeder capacities and impedances.
@@ -442,12 +442,12 @@ data/1-processed/energy/collaborator/
 - Add a third asset-model notebook that reviews demand, generation profiles and
   the normal-operation result without mixing it with data intake.
 
-### Priority 4a: synthetic distribution-network experiment
+### Priority 4a: inferred distribution-network experiment
 
-- `prepare-synthetic-distribution --enable-synthetic-distribution` builds a
+- `prepare-inferred-distribution --enable-inferred-distribution` builds a
   labelled topology-only graph from GridFinder and OSM distribution lines.
 - Graph nodes and edges are written under
-  `data/1-processed/energy/synthetic_distribution/`.
+  `data/1-processed/energy/inferred_distribution/`.
 - Stage A is connectivity only: remove failed substations or feeder edges and
   count proxy demand disconnected from every reviewed substation root.
 - Stage B remains future work: distribution power flow needs transformer-table
