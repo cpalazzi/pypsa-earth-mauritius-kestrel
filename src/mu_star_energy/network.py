@@ -68,6 +68,7 @@ def build_operational_network(
     demand_profile: pd.DataFrame,
     service_weights: pd.DataFrame,
     *,
+    generator_availability: pd.DataFrame | None = None,
     value_of_lost_load: float = 10_000,
     line_reactance_ohm_per_km: float = 0.4,
 ) -> pypsa.Network:
@@ -77,8 +78,11 @@ def build_operational_network(
     capacities cause a clear error rather than being estimated by the model.
 
     Generator ``capacity_mw`` is electrical output capacity and is passed
-    directly to ``Generator.p_nom``. Line ``s_nom_mva`` is an apparent-power
-    rating. This function does not convert capacities to or from an LHV basis.
+    directly to ``Generator.p_nom``. Optional generator availability values
+    must be fractions between zero and one, indexed by the same timestamps as
+    ``demand_profile`` and with one column per physical generator. Line
+    ``s_nom_mva`` is an apparent-power rating. This function does not convert
+    capacities to or from an LHV basis.
     """
     _require_columns(buses, {"bus_id", "geometry"}, "buses")
     _require_columns(
@@ -127,10 +131,27 @@ def build_operational_network(
         raise ValueError("Power-station substation assignments are incomplete")
     if demand_profile.empty:
         raise ValueError("Demand profile is empty")
+    demand_profile = demand_profile.apply(pd.to_numeric, errors="coerce")
     if demand_profile.isna().any().any():
         raise ValueError("Demand profile contains missing values")
-    if (demand_profile.select_dtypes(include="number") < 0).any().any():
+    if (demand_profile < 0).any().any():
         raise ValueError("Demand profile cannot contain negative demand")
+    if generator_availability is not None:
+        if not generator_availability.index.equals(demand_profile.index):
+            raise ValueError(
+                "Generator availability must use the same timestamps as demand_profile"
+            )
+        generator_availability = generator_availability.apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
+        if generator_availability.isna().any().any():
+            raise ValueError("Generator availability contains missing values")
+        if (
+            (generator_availability < 0).any().any()
+            or (generator_availability > 1).any().any()
+        ):
+            raise ValueError("Generator availability values must lie between zero and one")
 
     network = pypsa.Network()
     time_step_hours = _time_step_hours(demand_profile.index)
@@ -178,6 +199,17 @@ def build_operational_network(
             marginal_cost=float(row["marginal_cost"]),
             efficiency=float(row.get("efficiency", 1.0)),
         )
+
+    physical_generator_ids = generators["generator_id"].astype(str).tolist()
+    if generator_availability is not None:
+        availability = generator_availability.reindex(columns=physical_generator_ids)
+        if availability.isna().any().any():
+            missing = sorted(set(physical_generator_ids) - set(generator_availability.columns))
+            raise ValueError(
+                "Generator availability must contain one complete column per "
+                f"generator_id; missing: {missing}"
+            )
+        network.generators_t.p_max_pu.loc[:, physical_generator_ids] = availability
 
     weights = service_weights.set_index("bus_id")["service_weight"].reindex(
         bus_frame.index

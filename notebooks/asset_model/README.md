@@ -3,6 +3,11 @@
 These notebooks guide preparation of the existing Mauritius electricity
 network for interruption analysis.
 
+The workflow is fixed-capacity rather than capacity-optimising. The current
+input tables describe the existing system, but a reviewed future system can be
+run through the same `EnergyModel().simulate(network, disruptions)` interface
+if its assets, demand and disruptions are supplied explicitly.
+
 ## Before running
 
 1. Activate `.venv` and install the package with `pip install -e .`.
@@ -25,7 +30,7 @@ network for interruption analysis.
    - labels routes where source voltage or power-rating fields are populated;
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
-3. `03_interruption_analysis.ipynb`
+3. `02_interruption_analysis.ipynb`
    - loads the supplied generator, line and demand files when they are present;
    - shows how `damage_to_disruptions(...)` converts asset damage into the
      standard mu-star disruption table;
@@ -61,16 +66,16 @@ The route table includes `v_nom_kv`, `capacity_mw`, and `capacity_unit` columns
 for source voltage and MW line-rating values. These stay blank where the
 supplied route data do not state those values.
 
-The present workflow checks for `demand_profile.csv` but does not yet read it
-and run the final outage calculation automatically. The notebook
-`03_interruption_analysis.ipynb` shows the current Python route:
-load the supplied system files, convert damage to a disruption table when needed,
-build the network, run a baseline case, and then test outage scenarios. In the
-wider mu-star architecture this is the component-model step between hazard and
-damage calculations upstream and indirect-loss or viewer steps downstream. The
-network-building function can use a time-varying demand table when called from
-Python. It supports regular half-hourly, hourly and three-hourly profiles and
-sets their duration from the timestamp spacing.
+The `run-interruptions` CLI reads `demand_profile.csv`, builds the reviewed
+fixed-capacity network, runs a baseline case, and can then apply a disruption
+CSV. The notebook `02_interruption_analysis.ipynb` shows the same Python route:
+load the supplied system files, convert damage to a disruption table when
+needed, build the network, run a baseline case, and then test outage scenarios.
+In the wider mu-star architecture this is the component-model step between
+hazard and damage calculations upstream and indirect-loss or viewer steps
+downstream. The network-building function can use a time-varying demand table
+when called from Python. It supports regular half-hourly, hourly and
+three-hourly profiles and sets their duration from the timestamp spacing.
 
 GridFinder is currently used only as a demand-location proxy. The interruption
 notebook describes a separate experimental path that converts inferred routes
@@ -78,6 +83,19 @@ to a graph, anchors feeders to reviewed substations and first tests downstream
 disconnection. Electrical distribution power flow should only follow after
 transformer support and explicit voltage, capacity and impedance sensitivity
 cases are added.
+
+The separate command
+`mu-star-energy prepare-synthetic-distribution --enable-synthetic-distribution`
+builds that labelled topology-only graph when GridFinder or OSM distribution
+line files are available. Its outputs are written under
+`data/1-processed/energy/synthetic_distribution/` and must stay separate from
+the reviewed `existing_lines.csv` register.
+
+For eventual delivery into `nismod/mu-star`, this package maps to
+`src/energy`. Local data stages map as `0-incoming -> incoming`,
+`1-processed -> processed`, and `2-out -> out`. The disruption adapter should
+convert mu-star damage fractions to `available_fraction = 1 - damage_fraction`
+before calling the energy model.
 
 The column names are kept because the code needs them:
 

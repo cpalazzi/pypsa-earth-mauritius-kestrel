@@ -4,30 +4,115 @@
 
 This repository is the working Mauritius energy-model prototype for mu-star.
 It should converge toward a package that can move into, or be called by,
-`nismod/mu-star`.
+`nismod/mu-star` as the `energy` component model.
 
-The standard model interface is:
+The public model interface to keep stable is:
 
 ```python
-EnergyModel.simulate(network, disruptions)
+EnergyModel().simulate(network, disruptions)
 ```
 
-- `network`: existing assets, demand and settings for how they operate;
+- `network`: a prepared PyPSA network for the supplied fixed-capacity system;
 - `disruptions`: asset type, asset ID and the share that remains usable;
-- output: electricity supplied, electricity not supplied and cost.
+- output: `SimulationResult(metrics: dict, network)`, including electricity
+  supplied, electricity not supplied and cost.
 
-Do not let this model choose new power stations, lines or storage. Future
-investment questions belong in the PyPSA-Earth comparison work or in a
-separately defined adaptation study.
+The model dispatches supplied assets only. New power stations, lines or storage
+must appear in the input system before the run starts. Future investment
+questions belong in the PyPSA-Earth comparison work or in a separately defined
+adaptation study.
+
+## Delivery to mu-star
+
+Target delivery path:
+
+```text
+this repo: src/mu_star_energy  ->  nismod/mu-star: src/energy
+```
+
+The local mu-star checkout at `/Users/carlopalazzi/programming/mu-star` uses
+`src/<model_name>/` packages and exposes the example
+`src/transport/model.py::SampleModel.simulate(network, disruptions)` interface.
+`EnergyModel.simulate(...)` already follows the same call shape. It currently
+returns a `SimulationResult` so notebook users can inspect both metrics and the
+solved network; if mu-star orchestration needs a plain metrics object, add a
+thin adapter that returns `EnergyModel().simulate(...).metrics`.
+
+Data-stage mapping for delivery:
+
+```text
+this repo data/0-incoming/energy   ->  mu-star incoming/energy
+this repo data/1-processed/energy  ->  mu-star processed/energy
+this repo data/2-out/energy        ->  mu-star out/energy
+```
+
+Keep the numbered stage names locally until the package is moved. They are
+ordering aids, not a different data model.
+
+Disruption-schema mapping:
+
+- this package consumes `component`, `asset_id`, and `available_fraction`;
+- current helper input is `component`, `asset_id`, and `damage_fraction`;
+- mu-star damage outputs described in the delivery brief use `fraction` and
+  `monetary`, so the energy adapter should map damage fraction to
+  `available_fraction = 1 - fraction` and leave monetary impact for downstream
+  economic analysis.
+
+Delivery checklist:
+
+- move or rename imports from `mu_star_energy` to `energy`, or keep a temporary
+  compatibility shim during migration;
+- add the energy dependencies to mu-star, probably behind an optional extra:
+  `geopandas`, `networkx`, `pyarrow`, `pypsa>=0.30,<0.31`, `pyyaml`, and
+  `shapely`;
+- confirm the solver path for PyPSA/linopy, including HiGHS, in the mu-star
+  environment;
+- test under Python 3.12 before delivery. This package currently declares
+  `requires-python = ">=3.10"` while mu-star declares `>=3.12`;
+- keep `EnergyModel().simulate(network, disruptions)` stable and keep
+  `assert_fixed_capacity(...)` in the run path.
+
+Standalone run path:
+
+1. install the package with `pip install -e .`;
+2. run `python -m mu_star_energy.cli prepare-assets`;
+3. review and complete `existing_generators.csv`, `existing_lines.csv`,
+   `demand_profile.csv`, and `service_weights.csv` under
+   `data/1-processed/energy/collaborator`;
+4. build a PyPSA network with `build_operational_network(...)`;
+5. call `EnergyModel().simulate(network, disruptions)`.
+
+## Module Map
+
+- `intake.py`: validates collaborator source folders and writes cleaned
+  substations, route geometry, generation layers, demand summaries and register
+  templates.
+- `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
+  lines, generators, demand and service weights.
+- `model.py`: applies disruptions to a copied network, optimises supply and
+  returns standard supply metrics.
+- `damage.py`: converts asset damage fractions into usable asset fractions for
+  the energy model.
+- `distribution.py`: estimates substation demand shares from OSM/GridFinder
+  line-length proxies without adding synthetic feeders to the electrical
+  network.
+- `distribution_network.py`: builds the explicitly synthetic
+  GridFinder/OSM topology-only distribution graph and estimates downstream
+  disconnection impacts.
+- `paths.py`: centralises repository and data-stage paths, including
+  `MU_STAR_DATA_ROOT`.
+- `cli.py`: exposes the current `prepare-assets` and `run-interruptions`
+  command-line entry points.
+- `runner.py`: loads reviewed model inputs, runs baseline/outage simulations
+  and writes metrics, network files and unmet-demand tables.
 
 ## Current State
 
 The repository now contains two related but separate models:
 
-1. **Existing-system asset model:** collaborator and CEB data are used to
-   describe the power stations, substations, transmission lines and demand that
-   exist in Mauritius. This is the model intended for outage and damage
-   analysis.
+1. **Fixed-capacity asset model:** collaborator and CEB data currently describe
+   the power stations, substations, transmission lines and demand in Mauritius.
+   This is the model intended for outage and damage analysis.
 2. **PyPSA-Earth comparison model:** open data are used to build and optimise a
    possible power system. This model also produces useful hourly demand,
    weather and renewable-energy profiles.
@@ -46,12 +131,13 @@ Current asset-model preparation produces:
 - equal demand shares between substations because no OSM/GridFinder
   distribution file has yet been added.
 
-The Python network builder can use demand that changes over time, but the
-automated workflow does not yet build and run the final model from
-`demand_profile.csv`. Existing wind and solar generators also do not yet
-receive weather-dependent availability profiles. Until that is added, every
-non-damaged generator, including wind and solar, is available up to its full
-installed capacity in every time step.
+The Python network builder and CLI can use demand that changes over time.
+`run-interruptions` builds the reviewed network from `demand_profile.csv`, runs
+a baseline case and can run an outage case from a disruption table. Existing
+wind and solar generators can receive an optional availability profile, but the
+workflow does not yet create those profiles automatically from PyPSA-Earth
+weather files. Without a supplied availability table, every non-damaged
+generator is available up to its full installed capacity in every time step.
 
 ## Data Stages
 
@@ -148,7 +234,7 @@ named sensitivity sets for assumed feeder capacities and impedances.
 
 Primary asset-model notebooks:
 
-1. `00_data_intake.ipynb` reads the collaborator files, lists the records found
+1. `00_data_intake.ipynb` reads the collaborator files, lists the records found,
    shows substation snap distances and identifies missing power-station
    information.
 2. `01_operational_network.ipynb` displays the routes and snapped substations,
@@ -242,7 +328,8 @@ These profiles describe the share of installed capacity that weather allows at
 each hour. They can be useful for existing wind and solar assets after each
 asset has been matched to the nearest suitable profile region.
 
-Only the hourly `profile` values should be used for the existing-system model.
+Only the hourly `profile` values should be used for the fixed-capacity
+interruption model.
 The PyPSA-Earth `p_nom_max` and `potential` fields describe how much new
 capacity could potentially be built; they must not replace CEB installed
 capacity.
@@ -264,7 +351,7 @@ automatically overwrite collaborator or CEB records.
 
 ## Development Tasks
 
-### Priority 1: complete a runnable existing-system model
+### Priority 1: complete a runnable fixed-capacity interruption model
 
 - Confirm substation names, voltage levels and unique IDs.
 - Derive a geometric network from `PowerGrid.shp` without adding new routes:
@@ -289,8 +376,10 @@ normal demand without using the emergency unmet-demand option.
 
 ### Priority 2: integrate demand over time
 
-- Add a command that reads `demand_profile.csv`, checks timestamps, units,
-  missing values and time-step length, then reports annual demand and peak.
+- The `run-interruptions` command now reads `demand_profile.csv`, checks
+  timestamps, missing values and time-step length, and uses it in baseline and
+  outage runs. Add a separate demand-summary report for annual demand, peak and
+  load factor.
 - Add a preparation option for observed CEB hourly or half-hourly data.
 - Add an optional PyPSA-Earth fallback that:
   - reads the eight-region 2013 profile;
@@ -315,10 +404,10 @@ data/1-processed/energy/collaborator/
 
 ### Priority 3: integrate generation availability over time
 
-- Extend `build_operational_network(...)` to accept an optional table of
+- `build_operational_network(...)` now accepts an optional table of
   availability values between zero and one for each generator and time step.
-- Add a standard processed file, for example
-  `generator_availability.csv`, using `generator_id` columns.
+- Use `generator_availability.csv` as the standard processed file, with
+  timestamp rows and `generator_id` columns.
 - Match each existing solar and wind generator to a PyPSA-Earth weather region
   using its coordinates and technology.
 - Use PyPSA-Earth hourly `profile` values, but retain CEB installed capacity
@@ -341,19 +430,41 @@ data/1-processed/energy/collaborator/
 
 ### Priority 4: connect preparation, model build and outage runs
 
-- Add a command to build the final PyPSA network from cleaned buses, lines,
-  generators, demand and optional generation profiles.
-- Add a normal-operation run before applying damage.
-- Add automated outage runs from a disruption table.
-- Save the built network, summary results and unmet demand by substation and
-  time under `data/2-out/energy/`.
-- Replace the current Snakemake file-existence check with rules that prepare
-  profiles, build the network, run the normal case and run outage cases.
+- The `run-interruptions` command builds the final PyPSA network from cleaned
+  buses, lines, generators, demand and optional generation profiles.
+- It runs normal operation before applying damage.
+- It can run an outage case from a disruption table.
+- It saves the built network, summary results and unmet demand by substation
+  and time under `data/2-out/energy/`.
+- Snakemake now has rules for baseline and disruption runs; remaining work is
+  to add profile-preparation rules when observed demand or weather-derived
+  generator profiles are available.
 - Add a third asset-model notebook that reviews demand, generation profiles and
   the normal-operation result without mixing it with data intake.
 
+### Priority 4a: synthetic distribution-network experiment
+
+- `prepare-synthetic-distribution --enable-synthetic-distribution` builds a
+  labelled topology-only graph from GridFinder and OSM distribution lines.
+- Graph nodes and edges are written under
+  `data/1-processed/energy/synthetic_distribution/`.
+- Stage A is connectivity only: remove failed substations or feeder edges and
+  count proxy demand disconnected from every reviewed substation root.
+- Stage B remains future work: distribution power flow needs transformer-table
+  support, separate voltage-level buses and named sensitivity sets for feeder
+  capacity and impedance.
+- Keep these outputs out of `existing_lines.csv` and out of the reviewed
+  baseline unless a future review explicitly promotes specific assets.
+
 ### Priority 5: validate the model
 
+- Unit tests now check that `EnergyModel().simulate(...)` returns a metrics
+  dictionary with the expected mu-star supply metrics while preserving the
+  solved network for inspection.
+- Python 3.12 is available locally, but a temporary 3.12 dependency install did
+  not complete during the current review because the PyPSA/geospatial wheel
+  download stalled. Run the full test suite in a completed Python 3.12
+  environment before moving the package into `nismod/mu-star`.
 - Reconcile annual electricity demand, peak demand and sector totals.
 - Compare annual generation by technology with CEB reports.
 - Compare renewable capacity factors with reported generation and independent
@@ -404,7 +515,7 @@ replace this simple relationship.
 
 The existing annual run is `mauritius-year-1`, with ARC instructions under
 `arc/`. Its input files, model files and results stay under `pypsa-earth/`.
-They provide a comparison and are not the primary existing-system model.
+They provide a comparison and are not the primary reviewed asset model.
 
 At the start of an ARC session, create the SSH control socket in a normal
 terminal:

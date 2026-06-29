@@ -20,3 +20,12 @@ location. PyPSA-Earth files are separate and remain within
 
 The numeric prefixes only control display order in file browsers. Do not add
 parallel unnumbered stage directories.
+
+When the package is delivered into `nismod/mu-star`, these local stage names
+map to mu-star's unnumbered folders:
+
+```text
+0-incoming   ->  incoming
+1-processed  ->  processed
+2-out        ->  out
+```

@@ -17,6 +17,10 @@ data/1-processed/energy/
     generation_register_template.csv
     monthly_peak_demand_mw.csv
     annual_sector_demand_gwh.csv
+  synthetic_distribution/
+    synthetic_distribution_nodes.csv
+    synthetic_distribution_edges.csv
+    synthetic_distribution_metadata.json
 ```
 
 Files required before the model can calculate electricity supply:
@@ -29,6 +33,11 @@ Files required before the model can calculate electricity supply:
   `demand_mw` column or one complete demand column per substation;
 - `service_weights.csv`, giving every substation a share of total demand. The
   shares must add to one.
+- optional `generator_availability.csv`, with dates and times plus one
+  availability-fraction column per `generator_id`;
+- optional `disruptions.csv`, with `component`, `asset_id`, and
+  `available_fraction`, or a damage-fraction column that can be converted to
+  available fraction.
 
 Column meanings:
 
@@ -64,11 +73,11 @@ this optional field to display reviewed kV and MVA values on the corresponding
 route. Without it, the table remains usable by the model but cannot be placed
 on the source-route map.
 
-The model-building Python function accepts these time-varying demand values.
-The automated workflow currently checks that the file exists but does not yet
-read it and launch outage calculations. Regular half-hourly, hourly and
-three-hourly profiles are supported; the model sets the time-step duration from
-the timestamp spacing.
+The model-building Python function and `run-interruptions` CLI accept these
+time-varying demand values. Regular half-hourly, hourly and three-hourly
+profiles are supported; the model sets the time-step duration from the
+timestamp spacing. The same timestamp convention is used by
+`generator_availability.csv` when supplied.
 
 Copy `generation_register_template.csv` to `existing_generators.csv`, then
 review and complete it rather than editing generated Parquet outputs by hand.
@@ -91,3 +100,7 @@ transmission route for later network construction.
 part and movement distance so coarse or questionable alignments remain visible.
 Every substation is snapped. The 75 m warning used in the intake notebook only
 highlights movements for attention; it does not exclude a point.
+
+The optional `synthetic_distribution/` files are produced only by the explicit
+synthetic scenario command. They are connectivity-only GridFinder/OSM graph
+tables for review and are not confirmed electrical line assets.

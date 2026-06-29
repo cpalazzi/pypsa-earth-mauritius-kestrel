@@ -1,31 +1,33 @@
 # Mauritius Energy Network Model
 
-This repository develops the Mauritius electricity component model for the
-[`mu-star`](https://github.com/nismod/mu-star) infrastructure risk workflow.
-Its primary purpose is to measure service interruption when existing energy
-assets are damaged or unavailable.
+This repository builds the Mauritius electricity model used as a component of
+the [`mu-star`](https://github.com/nismod/mu-star) infrastructure risk
+workflow. It measures how much demand goes unserved when existing energy assets
+are damaged or taken out of service.
 
-The main model represents the power stations, transmission lines, substations
-and electricity demand that already exist. It does not decide which new assets
-Mauritius should build. For each hour, it works out which available power
-stations can meet demand after one or more assets have been damaged or taken
-out of service. Results include electricity demand that could not be supplied,
-the share of demand served and operating cost.
+The current prepared tables represent Mauritius's existing power stations,
+transmission lines, substations and demand. For each hour the model dispatches
+the supplied stations to meet demand and reports the energy not supplied, the
+share of demand served and operating cost. Investment questions such as where
+to build new generation, lines or storage belong in the PyPSA-Earth comparison
+track described below unless the future assets are supplied explicitly as an
+input system.
 
 ## Choose The Modelling Track
 
-### 1. Existing-system interruption model
+### 1. Fixed-capacity interruption model
 
-Use this track to represent the existing Mauritius electricity system and test
-what happens when assets are unavailable. This is the primary project work.
-The code is under
-`src/mu_star_energy/`; the guided review notebooks are under
+Use this track to run a supplied electricity system and test what happens when
+assets are unavailable. The current reviewed tables describe the existing
+Mauritius system, but the same interface can be given a future system if those
+assets are supplied explicitly. This is the primary project work. The code is
+under `src/mu_star_energy/`; the guided review notebooks are under
 `notebooks/asset_model/`.
 
 ```text
 collaborator and open source data
   -> checked tables of power stations, substations, lines and demand
-  -> a model of the existing electricity network
+  -> a fixed-capacity electricity network model
   -> a list of damaged or unavailable assets
   -> hourly electricity supply and unmet demand
 ```
@@ -62,7 +64,7 @@ cases are optional comparisons.
 ## Repository Layout
 
 ```text
-├── src/mu_star_energy/          # Existing-system model code
+├── src/mu_star_energy/          # Fixed-capacity interruption model code
 ├── config/energy.yaml           # Main model settings
 ├── config/damage_curves/        # How physical damage affects each asset type
 ├── workflow/                    # Automated data-preparation steps
@@ -196,23 +198,21 @@ Do not manually edit generated Parquet files.
 
 Open the notebooks in this order:
 
-1. `notebooks/asset_model/00_data_intake.ipynb`
-2. `notebooks/asset_model/01_operational_network.ipynb`
-3. `notebooks/asset_model/03_interruption_analysis.ipynb`
-
-The first checks which source records are available and creates a power-station
-register template. It also snaps every substation to the nearest transmission
-route and reports the movement distance. The second displays the routes with
-the snapped substations. Snapping aligns point locations but does not infer
-which substations are electrically connected. The third notebook shows
-how to load supplied generators, lines and demand, build a fixed-capacity
-network, run normal operation first, and then structure outage cases. It
-shows the standard mu-star handoff from asset damage to the
-`component`/`asset_id`/`available_fraction` disruption table used by
-`EnergyModel.simulate(network, disruptions)`, and sets out a staged,
-explicitly synthetic GridFinder experiment, starting with feeder connectivity
-and downstream service loss before adding assumed distribution power-flow
-parameters.
+1. `00_data_intake.ipynb` reads the source map and demand files, writes cleaned
+   substation, route and demand tables, and creates a power-station register
+   template. It snaps each substation to the nearest route and reports how far
+   it moved.
+2. `01_operational_network.ipynb` plots the routes with their snapped
+   substations and estimates how demand is shared between substations. Snapping
+   aligns the points geographically; electrical connections come from
+   `existing_lines.csv`, not from route proximity.
+3. `02_interruption_analysis.ipynb` loads the generators, lines and demand,
+   builds the fixed-capacity network, runs normal operation and then outage
+   cases. It demonstrates the mu-star handoff from asset damage to the
+   `component`/`asset_id`/`available_fraction` disruption table consumed by
+   `EnergyModel.simulate(network, disruptions)`, and sketches a staged
+   GridFinder distribution experiment (feeder connectivity and downstream
+   service loss first, distribution power flow later).
 
 All substations are snapped because the map is coarse. A 75 m threshold is
 used only to highlight larger movements in the intake notebook; it is not a
@@ -284,11 +284,19 @@ correct duration to energy and cost totals. Regular half-hourly, hourly and
 three-hourly profiles are therefore supported. Irregularly spaced timestamps
 are rejected because their duration would be ambiguous.
 
-The remaining implementation gap is file handling: the automated workflow
-checks that `demand_profile.csv` exists, but it does not yet read that file,
-build the final PyPSA network and run outage cases. At present, a Python script
-or notebook must read the CSV into a pandas table, set its date/time column as
-the index and pass it to `build_operational_network(...)`.
+The CLI can now read the reviewed files, build the PyPSA network and run a
+baseline or disruption case:
+
+```bash
+.venv/bin/python -m mu_star_energy.cli run-interruptions \
+  --input-dir data/1-processed/energy/collaborator \
+  --output-dir data/2-out/energy \
+  --disruptions data/1-processed/energy/collaborator/disruptions.csv
+```
+
+Omit `--disruptions` for a baseline-only run. Add
+`--generator-availability generator_availability.csv` when a timestamped table
+of availability fractions is available, with one column per `generator_id`.
 
 An hourly profile remains the simplest starting point, but it is not a
 technical requirement.
@@ -352,6 +360,17 @@ loaded using population or building data. The first experiment should model
 downstream disconnection only. Distribution power flow requires separate
 voltage-level buses, transformers and named sensitivity cases for uncertain
 feeder capacities and impedances.
+
+Build the synthetic layer only when deliberately requested:
+
+```bash
+.venv/bin/python -m mu_star_energy.cli prepare-synthetic-distribution \
+  --enable-synthetic-distribution
+```
+
+This writes labelled review tables under
+`data/1-processed/energy/synthetic_distribution/`. These tables are synthetic
+connectivity inputs and are not merged into `existing_lines.csv`.
 
 ## PyPSA-Earth Comparisons
 

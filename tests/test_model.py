@@ -75,6 +75,23 @@ def test_simulate_reports_unserved_energy_after_generator_derating():
     assert result.metrics["served_fraction"] == 0.3125
 
 
+def test_simulate_result_keeps_mu_star_metrics_shape():
+    result = EnergyModel(solver_name="highs").simulate(simple_network(), [])
+
+    expected_keys = {
+        "status",
+        "condition",
+        "total_demand_mwh",
+        "unserved_energy_mwh",
+        "served_energy_mwh",
+        "served_fraction",
+        "objective",
+    }
+    assert expected_keys <= set(result.metrics)
+    assert isinstance(result.metrics, dict)
+    assert result.network is not None
+
+
 def test_operational_network_rejects_missing_generator_marginal_cost():
     geopandas = pytest.importorskip("geopandas")
     shapely_geometry = pytest.importorskip("shapely.geometry")
@@ -188,6 +205,58 @@ def test_operational_network_uses_profile_values_and_time_step_duration():
     result = EnergyModel(solver_name="highs").simulate(network, [])
     assert result.metrics["total_demand_mwh"] == 50.0
     assert result.metrics["unserved_energy_mwh"] == 0.0
+
+
+def test_operational_network_applies_generator_availability_profile():
+    geopandas = pytest.importorskip("geopandas")
+    shapely_geometry = pytest.importorskip("shapely.geometry")
+
+    buses = geopandas.GeoDataFrame(
+        {
+            "bus_id": ["A"],
+            "geometry": [shapely_geometry.Point(57.5, -20.2)],
+        },
+        crs="EPSG:4326",
+    )
+    lines = geopandas.GeoDataFrame(
+        {
+            "line_id": pd.Series(dtype="object"),
+            "bus0": pd.Series(dtype="object"),
+            "bus1": pd.Series(dtype="object"),
+            "v_nom_kv": pd.Series(dtype="float64"),
+            "length_km": pd.Series(dtype="float64"),
+            "s_nom_mva": pd.Series(dtype="float64"),
+        }
+    )
+    generators = pd.DataFrame(
+        {
+            "generator_id": ["plant"],
+            "bus_id": ["A"],
+            "carrier": ["thermal"],
+            "capacity_mw": [100.0],
+            "capacity_basis": ["electrical_output"],
+            "marginal_cost": [50.0],
+        }
+    )
+    demand = pd.DataFrame(
+        {"demand_mw": [80.0, 80.0]},
+        index=pd.date_range("2025-01-01", periods=2, freq="h"),
+    )
+    service_weights = pd.DataFrame({"bus_id": ["A"], "service_weight": [1.0]})
+    availability = pd.DataFrame({"plant": [0.5, 1.0]}, index=demand.index)
+
+    network = build_operational_network(
+        buses,
+        lines,
+        generators,
+        demand,
+        service_weights,
+        generator_availability=availability,
+    )
+    result = EnergyModel(solver_name="highs").simulate(network, [])
+
+    assert network.generators_t.p_max_pu["plant"].tolist() == [0.5, 1.0]
+    assert result.metrics["unserved_energy_mwh"] == 30.0
 
 
 def test_operational_network_rejects_irregular_profile_times():

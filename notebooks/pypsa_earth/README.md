@@ -2,7 +2,7 @@
 
 These notebooks inspect the included PyPSA-Earth model and results for possible
 future power systems. They provide an open-data comparison and show how results
-change when assumptions change. They are separate from the existing-system
+change when assumptions change. They are separate from the fixed-capacity
 interruption model.
 
 ## Prerequisites

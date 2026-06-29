@@ -29,5 +29,5 @@ def validate_notebook(filepath):
 
 
 if __name__ == "__main__":
-    if not validate_notebook("notebooks/asset_model/03_interruption_analysis.ipynb"):
+    if not validate_notebook("notebooks/asset_model/02_interruption_analysis.ipynb"):
         sys.exit(1)
