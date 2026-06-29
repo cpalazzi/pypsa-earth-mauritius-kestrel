@@ -53,11 +53,7 @@ rule build_inferred_network:
 
 rule run_energy_baseline:
     input:
-        buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        lines=f"{PROCESSED_ENERGY}/lines.csv",
-        generators=f"{PROCESSED_ENERGY}/generators.csv",
-        demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
-        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
+        network=f"{NETWORKS_ENERGY}/base.nc",
     output:
         demand_summary=f"{OUTPUT_ENERGY}/demand_summary.csv",
         summary=f"{OUTPUT_ENERGY}/summary_metrics.csv",
@@ -74,17 +70,14 @@ rule run_energy_baseline:
         .venv/bin/python -m mu_star_energy.cli run-interruptions \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
+          --network {input.network} \
           --solver {params.solver} \
           --value-of-lost-load {params.value_of_lost_load}
         """
 
 rule run_energy_outage:
     input:
-        buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        lines=f"{PROCESSED_ENERGY}/lines.csv",
-        generators=f"{PROCESSED_ENERGY}/generators.csv",
-        demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
-        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
+        network=f"{NETWORKS_ENERGY}/base.nc",
         disruptions=f"{PROCESSED_ENERGY}/disruptions.csv",
     output:
         outage_metrics=f"{OUTPUT_ENERGY}/outage_metrics.json",
@@ -100,6 +93,7 @@ rule run_energy_outage:
         .venv/bin/python -m mu_star_energy.cli run-interruptions \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
+          --network {input.network} \
           --solver {params.solver} \
           --value-of-lost-load {params.value_of_lost_load} \
           --disruptions {input.disruptions}

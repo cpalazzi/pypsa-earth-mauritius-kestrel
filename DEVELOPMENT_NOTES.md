@@ -112,14 +112,14 @@ Standalone run path:
 
 The repository now contains two related but separate models:
 
-1. **Fixed-capacity asset model:** collaborator and CEB data currently describe
+1. **Interruption model:** collaborator and CEB data currently describe
    the power stations, substations, transmission lines and demand in Mauritius.
    This is the model intended for outage and damage analysis.
 2. **PyPSA-Earth comparison model:** open data are used to build and optimise a
    possible power system. This model also produces useful hourly demand,
    weather and renewable-energy profiles.
 
-The asset model does not currently import PyPSA-Earth files automatically.
+The interruption model does not currently import PyPSA-Earth files automatically.
 PyPSA-Earth data are optional supporting inputs, not the default source of
 existing assets or capacities.
 
@@ -134,9 +134,10 @@ Current interruption-model preparation produces:
   distribution file has yet been added.
 
 The Python network builder and CLI can use demand that changes over time.
-`run-interruptions` builds the reviewed network from `demand_profile.csv`, runs
-a baseline case and can run an outage case from a disruption table. Existing
-wind and solar generators can receive an optional availability profile, but the
+`build-network` writes the saved PyPSA handoff; `run-interruptions` can load
+that handoff with `--network` / `--network-source`, run a baseline case and run
+an outage case from a disruption table. Existing wind and solar generators can
+receive an optional availability profile during network build, but the
 workflow does not yet create those profiles automatically from PyPSA-Earth
 weather files. Without a supplied availability table, every non-damaged
 generator is available up to its full installed capacity in every time step.
@@ -245,11 +246,15 @@ named sensitivity sets for assumed feeder capacities and impedances.
 
 Primary interruption-model notebooks:
 
-1. `00_data_intake.ipynb` reads the collaborator files, lists the records found,
-   shows substation snap distances and identifies missing power-station
-   information.
-2. `01_operational_network.ipynb` displays the routes and snapped substations,
-   estimates how demand is shared and lists missing model inputs.
+1. `00-data-review/00_data_review.ipynb` reads the collaborator files, lists
+   the records found, shows substation snap distances and identifies missing
+   power-station information. It does not build a model.
+2. `01-build-network/01_build_network.ipynb` displays the routes and snapped
+   substations, estimates how demand is shared, lists missing model inputs and
+   calls `build_network(source=...)` to write a saved PyPSA network handoff.
+3. `02-interruption-analysis/02_interruption_analysis.ipynb` loads a saved
+   `networks/<source>.nc` file and runs baseline/outage cases without
+   rebuilding source-specific network inputs.
 
 The line geometry does not identify the two endpoint substations for
 each electrical circuit. The repository therefore does not convert mapped
@@ -298,9 +303,9 @@ generated from the GEGIS demand dataset using:
 Before any interruption-model calibration, the eight columns total about 4.55 TWh for
 the year and have a combined peak of about 643 MW. These are modelled values,
 not observed CEB demand. The columns use PyPSA-Earth region IDs (`0` to `7`),
-not the asset model's substation IDs (`SUB_001`, etc.).
+not the interruption model's substation IDs (`SUB_001`, etc.).
 
-Possible use in the asset model:
+Possible use in the interruption model:
 
 1. add the eight columns to create one Mauritius-wide hourly shape;
 2. calibrate that shape to agreed CEB annual demand and peak information;
@@ -312,7 +317,7 @@ The chosen weather/demand year, scaling target and method should be saved with
 the processed file. One multiplier can match annual demand or peak demand, but
 will not generally match both. Matching both may require a documented change
 to the shape as well as scaling. Directly copying the eight PyPSA-Earth columns
-into the asset model would be incorrect because the two models use different
+into the interruption model would be incorrect because the two models use different
 locations.
 
 Preferred source order:
@@ -441,8 +446,11 @@ data/1-processed/energy/collaborator/
 
 ### Priority 4: connect preparation, model build and outage runs
 
-- The `run-interruptions` command builds the final PyPSA network from cleaned
+- The `build-network` command builds the final PyPSA network from cleaned
   buses, lines, generators, demand and optional generation profiles.
+- The `run-interruptions` command loads a saved network handoff with
+  `--network` / `--network-source`, with CSV rebuilding retained only as a
+  fallback.
 - It runs normal operation before applying damage.
 - It can run an outage case from a disruption table.
 - It saves the built network, summary results and unmet demand by substation
@@ -532,7 +540,7 @@ replace this simple relationship.
 
 The existing annual run is `mauritius-year-1`, with ARC instructions under
 `arc/`. Its input files, model files and results stay under `pypsa-earth/`.
-They provide a comparison and are not the primary reviewed asset model.
+They provide a comparison and are not the primary reviewed model.
 
 At the start of an ARC session, create the SSH control socket in a normal
 terminal:

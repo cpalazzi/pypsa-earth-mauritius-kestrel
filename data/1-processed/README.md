@@ -61,7 +61,7 @@ Column meanings:
 - `v_nom_kv`: nominal voltage in kV. Lines at different voltages require
   separate buses connected by a transformer.
 
-The asset model does not store generator capacity on an LHV fuel-input basis.
+The model does not store generator capacity on an LHV fuel-input basis.
 If a fuel price is supplied per thermal MWh on an LHV basis, convert it to
 electrical marginal cost using the documented generator efficiency. PyPSA
 `Link.p_nom`, used for explicit conversion technologies, is instead input-side

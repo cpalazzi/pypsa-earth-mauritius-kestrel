@@ -18,9 +18,12 @@ public call `EnergyModel().simulate(network, disruptions)`.
   - structural `inferred` network generated at
     `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth
     OSM line extraction fallback and provisional one-snapshot demand.
-- Next: finish notebook restructuring around the network-source selector and
-  replace provisional inferred inputs with cached OSM/GridFinder and reviewed
-  demand/generator tables.
+- Notebook restructuring around the network-source selector is done: notebooks
+  now live under `00-data-review/`, `01-build-network/`, and `02-interruption-analysis/`; the
+  network notebook calls `build_network(source=...)`; the interruption notebook
+  loads `networks/<source>.nc`.
+- Next: replace provisional inferred inputs with cached OSM/GridFinder and
+  reviewed demand/generator tables, then add island-specific OSM ingestion.
 
 ## Context: the mu-star delivery target
 
@@ -38,8 +41,8 @@ public call `EnergyModel().simulate(network, disruptions)`.
 ## Naming conventions (decided)
 
 - `notebooks/asset_model/` was renamed to `notebooks/interruption_model/`, then
-  split by lifecycle stage (see restructure below): `0-data_review/`,
-  `1-network/`, `2-interruption/`, alongside `pypsa_earth/`.
+  split by lifecycle stage (see restructure below): `00-data-review/`,
+  `01-build-network/`, `02-interruption-analysis/`, alongside `pypsa-earth/`.
 - `existing_lines.csv` → `lines.csv`, `existing_generators.csv` → `generators.csv`
   (within this model every asset is "existing", so the prefix is noise). Already
   applied to code, config, tests and docs; the notebook restructure below must
@@ -47,10 +50,10 @@ public call `EnergyModel().simulate(network, disruptions)`.
 
 ## The two models
 
-- **Interruption model** (`src/mu_star_energy`; notebooks `0-data_review`,
-  `1-network`, `2-interruption`): fixed-capacity dispatch + outage analysis.
+- **Interruption model** (`src/mu_star_energy`; notebooks `00-data-review`,
+  `01-build-network`, `02-interruption-analysis`): fixed-capacity dispatch + outage analysis.
   The mu-star deliverable.
-- **PyPSA-Earth** (`pypsa-earth/`, `notebooks/pypsa_earth`): open-data build,
+- **PyPSA-Earth** (`pypsa-earth/`, `notebooks/pypsa-earth`): open-data build,
   demand/weather/renewable methods, and capacity expansion. Present so the
   interruption model can borrow methods (e.g. demand profiles) and as the
   natural home for a future **capacity-expansion** extension. Keep the two
@@ -67,20 +70,20 @@ converge on `EnergyModel.simulate`.
 
 ```
 notebooks/
-  0-data_review/   look only: CEB shapefiles + OSM/GridFinder, maps, tables. No model.
-  1-network/       build source = base | inferred (per island); fetch OSM/GridFinder if
+  00-data-review/   look only: CEB shapefiles + OSM/GridFinder, maps, tables. No model.
+  01-build-network/ build source = base | inferred (per island); fetch OSM/GridFinder if
                    absent; emit lines/buses/generators/demand -> PyPSA network; save .nc.
-  2-interruption/  load a saved network, baseline + outage cases, write metrics.
-  pypsa_earth/     open-data reference; future capacity-expansion analysis.
+  02-interruption-analysis/  load a saved network, baseline + outage cases, write metrics.
+  pypsa-earth/     open-data reference; future capacity-expansion analysis.
 ```
 
-- Migrate today's notebooks with `git mv`: `00_data_intake` -> `0-data_review/`,
-  `01_operational_network` -> `1-network/` (becomes the build notebook),
-  `02_interruption_analysis` -> `2-interruption/`.
+- Migrate today's notebooks with `git mv`: `00_data_review` -> `00-data-review/`,
+  `01_build_network` -> `01-build-network/` (the build notebook),
+  `02_interruption_analysis` -> `02-interruption-analysis/`.
 - Handoff artifact: `data/1-processed/energy/networks/<source>[-<island>].nc`.
-  `1-network` writes it; `2-interruption` loads it and never branches on source.
+  `01-build-network` writes it; `02-interruption-analysis` loads it and never branches on source.
 - Keep numeric folder prefixes + a top-level `notebooks/README.md` run order.
-  Islands and scenarios are parameters inside `1-network`, not extra folders.
+  Islands and scenarios are parameters inside `01-build-network`, not extra folders.
 ### Done in commit 10cf6a4
 - `network_source.py` + `build-network base|inferred` CLI + Snakemake rules
   `build_base_network` / `build_inferred_network` save `<source>.nc` + metadata
@@ -90,17 +93,14 @@ notebooks/
 - `osmnx>=2` added to `pyproject.toml`; `network.py` lines carry an `AC` carrier
   and a small resistance.
 
-### 1. Notebook restructure (NOT done — main remaining task)
-- Migrate the three notebooks out of `notebooks/interruption_model/` into staged
-  folders with `git mv`: `00_data_intake` → `0-data_review/`,
-  `01_operational_network` → `1-network/`, `02_interruption_analysis` →
-  `2-interruption/`. Delete the stray untracked `notebooks/asset_model/`.
-- Update notebook **contents**: they still reference `existing_lines.csv` /
-  `existing_generators.csv` and the old variables — rename to `lines.csv` /
-  `generators.csv`. `1-network` drives `build_network(source=...)`;
-  `2-interruption` loads a saved `.nc` and never rebuilds.
-- Make `run-interruptions` / `2-interruption` consume `networks/<source>.nc`
-  instead of rebuilding from CSVs (runner currently rebuilds).
+### 1. Notebook restructure (done)
+- The three notebooks were migrated into staged folders:
+  `00-data-review/`, `01-build-network/`, and `02-interruption-analysis/`.
+- Notebook contents use `lines.csv` / `generators.csv`; `01-build-network` drives
+  `build_network(source=...)`; `02-interruption-analysis` loads a saved `.nc` and does
+  not rebuild.
+- `run-interruptions` accepts `--network` / `--network-source` and the
+  Snakemake run rules consume `networks/base.nc`.
 
 ### 2. Real OSM ingestion + islands (NOT done — osmnx unused)
 - Add `osm.py` (osmnx/Overpass), cache to `0-incoming/energy/osm/<island>/`:
@@ -118,11 +118,11 @@ notebooks/
   never in base.
 
 ### 4. First-pass docs
-- One README per notebook folder (Purpose/Inputs/Outputs/Settings); update
-  top-level README + DEVELOPMENT_NOTES module map; clear outputs before commit.
+- One README per notebook folder is in place; top-level README and
+  DEVELOPMENT_NOTES describe the staged notebook workflow.
 
-Acceptance: `1-network` builds base or any island inferred grid and saves a
-network; `2-interruption` loads any saved network unchanged; tests green.
+Acceptance: `01-build-network` builds base or any island inferred grid and saves a
+network; `02-interruption` loads any saved network unchanged; tests green.
 
 ## Delivery prep
 

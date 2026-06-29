@@ -8,6 +8,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import pypsa
 
 from mu_star_energy.damage import damage_to_disruptions
 from mu_star_energy.model import EnergyModel, SimulationResult
@@ -157,6 +158,7 @@ def run_interruption_analysis(
     input_dir: Path,
     output_dir: Path,
     *,
+    network_path: Path | None = None,
     solver_name: str = "highs",
     value_of_lost_load: float = 10_000,
     disruptions_path: Path | None = None,
@@ -164,31 +166,45 @@ def run_interruption_analysis(
     require_no_baseline_shedding: bool = False,
     export_networks: bool = True,
 ) -> RunOutputs:
-    """Build the reviewed network, run baseline and optional outage cases."""
+    """Load or build a fixed-capacity network and run optional outage cases."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
-    lines = pd.read_csv(input_dir / "lines.csv")
-    generators = pd.read_csv(input_dir / "generators.csv")
-    demand = read_time_series_csv(input_dir / "demand_profile.csv", label="demand_profile")
-    service_weights = pd.read_csv(input_dir / "service_weights.csv")
-    generator_availability = (
-        read_time_series_csv(generator_availability_path, label="generator_availability")
-        if generator_availability_path
-        else None
-    )
+    if network_path is not None:
+        if generator_availability_path is not None:
+            raise ValueError(
+                "Generator availability is baked into saved network handoff files; "
+                "rebuild the network instead of passing generator_availability."
+            )
+        network = pypsa.Network(network_path)
+    else:
+        buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
+        lines = pd.read_csv(input_dir / "lines.csv")
+        generators = pd.read_csv(input_dir / "generators.csv")
+        demand = read_time_series_csv(
+            input_dir / "demand_profile.csv",
+            label="demand_profile",
+        )
+        service_weights = pd.read_csv(input_dir / "service_weights.csv")
+        generator_availability = (
+            read_time_series_csv(
+                generator_availability_path,
+                label="generator_availability",
+            )
+            if generator_availability_path
+            else None
+        )
 
-    network = build_operational_network(
-        buses,
-        lines,
-        generators,
-        demand,
-        service_weights,
-        generator_availability=generator_availability,
-        value_of_lost_load=value_of_lost_load,
-    )
+        network = build_operational_network(
+            buses,
+            lines,
+            generators,
+            demand,
+            service_weights,
+            generator_availability=generator_availability,
+            value_of_lost_load=value_of_lost_load,
+        )
     demand_summary = output_dir / "demand_summary.csv"
     _write_demand_summary(demand_summary, network)
 

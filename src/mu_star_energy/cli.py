@@ -25,9 +25,13 @@ def _prepare_assets(args: argparse.Namespace) -> None:
 
 
 def _run_interruptions(args: argparse.Namespace) -> None:
+    network_path = args.network
+    if args.network_source is not None:
+        network_path = processed_energy_dir() / "networks" / f"{args.network_source}.nc"
     outputs = run_interruption_analysis(
         Path(args.input_dir),
         Path(args.output_dir),
+        network_path=network_path,
         solver_name=args.solver,
         value_of_lost_load=args.value_of_lost_load,
         disruptions_path=args.disruptions,
@@ -178,6 +182,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=output_energy_dir(),
         help="Folder where metrics, unmet-demand tables and networks are written.",
+    )
+    network_selector = run.add_mutually_exclusive_group()
+    network_selector.add_argument(
+        "--network",
+        type=Path,
+        default=None,
+        help="Optional saved PyPSA .nc handoff file to load instead of rebuilding from CSVs.",
+    )
+    network_selector.add_argument(
+        "--network-source",
+        choices=["base", "inferred"],
+        default=None,
+        help="Load data/1-processed/energy/networks/<source>.nc.",
     )
     run.add_argument(
         "--disruptions",

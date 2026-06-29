@@ -1,6 +1,6 @@
 # Project data
 
-This is the single data tree for the Mauritius asset model:
+This is the single data tree for the Mauritius energy model:
 
 ```text
 0-incoming  ->  1-processed  ->  2-out
