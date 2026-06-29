@@ -31,3 +31,6 @@ data/2-out/**
 # Editor
 .vscode/
 *.code-workspace
+
+# osmnx Overpass cache
+cache/

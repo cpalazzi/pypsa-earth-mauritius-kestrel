@@ -67,6 +67,9 @@ def fetch_osm_roads(
 
     import osmnx as ox  # imported lazily; needs network access
 
+    # Keep the Overpass response cache inside the (ignored) data tree.
+    ox.settings.cache_folder = str(incoming_energy_dir() / "osm" / ".cache")
+
     try:
         from osmnx._errors import InsufficientResponseError
     except Exception:  # pragma: no cover - version-dependent import
