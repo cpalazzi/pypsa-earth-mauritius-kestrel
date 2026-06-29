@@ -1,4 +1,4 @@
-# Interruption-Analysis Notebooks
+# Interruption-analysis notebooks
 
 Purpose: load a saved PyPSA network handoff, run baseline operation, apply
 disruptions and write interruption metrics.

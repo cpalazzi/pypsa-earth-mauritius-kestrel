@@ -1,4 +1,4 @@
-# ARC Cluster Scripts
+# ARC cluster scripts
 
 Scripts for running the Mauritius PyPSA-Earth workflow on Oxford ARC.
 These are technical instructions for the person running large jobs on the
@@ -15,7 +15,7 @@ need to use them.
   weather data.
 - `jobs/02_build_networks_and_solve_power.sh`: builds and solves electricity networks.
 
-## Basic Run
+## Basic run
 
 From the repo checkout on ARC:
 
@@ -33,7 +33,7 @@ sbatch ../arc/jobs/02_build_networks_and_solve_power.sh \
   configs/scenarios/config.mauritius-year-1.yaml
 ```
 
-## Additional Comparison Runs
+## Additional comparison runs
 
 Run these only after the main wind and solar profile build succeeds:
 
@@ -63,7 +63,7 @@ sbatch --dependency=afterany:$JOB1 ../arc/jobs/02_build_networks_and_solve_power
   mauritius-year-1-h2-dea30 configs/scenarios/config.mauritius-year-1-h2-dea30.yaml
 ```
 
-## SSH Pattern
+## SSH pattern
 
 Use non-interactive SSH with one quoted remote command:
 
@@ -88,7 +88,7 @@ tail -f logs/snakemake-*-solve-power.log
 sacct -j <jobid> --format=JobID,JobName,State,Elapsed,MaxRSS,NodeList,ExitCode
 ```
 
-## Download Results
+## Download results
 
 ```bash
 rsync -av --progress <user>@arc-login.arc.ox.ac.uk:/data/<group>/<user>/pypsa-earth-mauritius-kestrel/pypsa-earth/results/mauritius-year-1/ pypsa-earth/results/mauritius-year-1/

@@ -3,7 +3,7 @@
 Use the repository `.venv` kernel. The notebooks are split by modelling
 purpose, not just by data source.
 
-## Fixed-Capacity Interruption Workflow
+## Fixed-capacity interruption workflow
 
 Run these folders in order after placing collaborator data under
 `data/0-incoming` or an equivalent `MU_STAR_DATA_ROOT`:
@@ -22,7 +22,7 @@ for the `energy` component model. The public call remains
 `EnergyModel().simulate(network, disruptions)`, with disruptions supplied as
 `component`, `asset_id`, and `available_fraction`.
 
-## `pypsa-earth/`
+## `pypsa-earth-analysis/`
 
 Notebooks for exploring open-data PyPSA-Earth runs and possible future power
 systems. Run only the notebook relevant to your question; they are not a

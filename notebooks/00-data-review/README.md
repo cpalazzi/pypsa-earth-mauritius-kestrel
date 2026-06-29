@@ -1,4 +1,4 @@
-# Data Review Notebooks
+# Data review notebooks
 
 Purpose: inspect collaborator source files, write cleaned review tables and
 identify missing engineering inputs. This stage does not build a PyPSA network.

@@ -1,4 +1,4 @@
-# Build-Network Notebooks
+# Build-network notebooks
 
 Purpose: review network inputs, choose `source = "base"` or `"inferred"` and
 write a saved PyPSA network handoff under `data/1-processed/energy/networks/`.

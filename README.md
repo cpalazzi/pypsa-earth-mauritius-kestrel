@@ -1,4 +1,4 @@
-# Mauritius Energy Network Model
+# Mauritius energy network model
 
 The Mauritius electricity component of the
 [`mu-star`](https://github.com/nismod/mu-star) infrastructure risk workflow. It
@@ -27,7 +27,7 @@ result = EnergyModel().simulate(network, disruptions)
 ```
 
 **PyPSA-Earth reference** — code in `pypsa-earth/`, notebooks in
-`notebooks/pypsa-earth/`. An open-data build used for renewable profiles, GEGIS
+`notebooks/pypsa-earth-analysis/`. An open-data build used for renewable profiles, GEGIS
 demand and capacity-expansion comparisons. It is not the CEB asset record and
 does not feed the interruption model.
 
@@ -42,7 +42,7 @@ does not feed the interruption model.
 │   ├── 00-data-review/           # Review source data and write cleaned tables
 │   ├── 01-build-network/        # Build saved PyPSA network handoff files
 │   ├── 02-interruption-analysis/ # Load saved networks and run outage cases
-│   └── pypsa-earth/             # Explore open-data and future-system runs
+│   └── pypsa-earth-analysis/    # Explore open-data and future-system runs
 ├── data/
 │   ├── 0-incoming/              # Collaborator and downloaded source files
 │   ├── 1-processed/             # Cleaned files used by the model
@@ -166,6 +166,6 @@ scenario — never merged into the reviewed `base` inputs.
 
 ## PyPSA-Earth comparisons
 
-See `notebooks/pypsa-earth/README.md`. These notebooks are read-only analysis:
+See `notebooks/pypsa-earth-analysis/README.md`. These notebooks are read-only analysis:
 pick the one relevant to your question and confirm compared runs share the same
 assumptions (cost year, time-step length, carbon limit, technologies).

@@ -1,6 +1,6 @@
-# Development Notes
+# Development notes
 
-## Project Role
+## Project role
 
 This repository is the working Mauritius energy-model prototype for mu-star.
 It should converge toward a package that can move into, or be called by,
@@ -82,7 +82,7 @@ Standalone run path:
 4. build a PyPSA network with `build_operational_network(...)`;
 5. call `EnergyModel().simulate(network, disruptions)`.
 
-## Module Map
+## Module map
 
 - `intake.py`: validates collaborator source folders and writes cleaned
   substations, route geometry, generation layers, demand summaries and register
@@ -108,7 +108,7 @@ Standalone run path:
 - `runner.py`: loads reviewed model inputs, runs baseline/outage simulations
   and writes metrics, network files and unmet-demand tables.
 
-## Current State
+## Current state
 
 The repository now contains two related but separate models:
 
@@ -151,7 +151,7 @@ line extraction fallback when no cached GridFinder/OSM distribution file is
 present. The reviewed `base` network is still blocked until `lines.csv`,
 `generators.csv` and `demand_profile.csv` are supplied.
 
-## Data Stages
+## Data stages
 
 The repository follows the mu-star convention:
 
@@ -187,7 +187,7 @@ data/0-incoming/energy/collaborator/
 Keep source files unchanged. Put any manual judgement in a cleaned register,
 along with the source and a short explanation.
 
-## Model Boundary
+## Model boundary
 
 ### Electrical model
 
@@ -242,17 +242,17 @@ graph connectivity and downstream demand disconnection. Distribution
 power-flow cases require separate voltage-level buses and transformers, plus
 named sensitivity sets for assumed feeder capacities and impedances.
 
-## Notebook Separation
+## Notebook separation
 
 Primary interruption-model notebooks:
 
 1. `00-data-review/00_data_review.ipynb` reads the collaborator files, lists
    the records found, shows substation snap distances and identifies missing
    power-station information. It does not build a model.
-2. `01-build-network/01_build_network.ipynb` displays the routes and snapped
+2. `01-build-network/00_build_network.ipynb` displays the routes and snapped
    substations, estimates how demand is shared, lists missing model inputs and
    calls `build_network(source=...)` to write a saved PyPSA network handoff.
-3. `02-interruption-analysis/02_interruption_analysis.ipynb` loads a saved
+3. `02-interruption-analysis/00_interruption_analysis.ipynb` loads a saved
    `networks/<source>.nc` file and runs baseline/outage cases without
    rebuilding source-specific network inputs.
 
@@ -281,7 +281,7 @@ Notebook outputs should be cleared before commit when they contain private data
 or large embedded figures. The folder READMEs define prerequisites and which
 settings users may change.
 
-## Relationship With PyPSA-Earth Data
+## Relationship with PyPSA-Earth data
 
 ### Demand profile
 
@@ -365,7 +365,7 @@ PyPSA-Earth can also help check OSM transmission mapping and open power-station
 records. Differences should be reported for review; they should not
 automatically overwrite collaborator or CEB records.
 
-## Development Tasks
+## Development tasks
 
 ### Priority 1: complete a runnable fixed-capacity interruption model
 
@@ -510,7 +510,7 @@ data/1-processed/energy/collaborator/
 - Connect customer-sector impacts to value-of-lost-load or wider economic
   impact methods, with assumptions visible.
 
-## Damage And Interruption Flow
+## Damage and interruption flow
 
 The intended mu-star chain is:
 
@@ -529,7 +529,7 @@ initial implementation converts `damage_fraction` to
 `available_fraction = 1 - damage_fraction`; later work on repair time can
 replace this simple relationship.
 
-## PyPSA-Earth Reference Workflow
+## PyPSA-Earth reference workflow
 
 `pypsa-earth/` remains useful for comparison with:
 
