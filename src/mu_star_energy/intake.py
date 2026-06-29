@@ -90,6 +90,83 @@ def _clean_label(value: object, fallback: str = "unnamed") -> str:
     return cleaned or fallback
 
 
+def _combined_source_text(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.Series:
+    existing_columns = [column for column in columns if column in frame.columns]
+    if not existing_columns:
+        return pd.Series("", index=frame.index)
+    return frame[existing_columns].fillna("").astype(str).agg(" ".join, axis=1)
+
+
+def _first_numeric_source_column(
+    frame: pd.DataFrame,
+    candidates: tuple[str, ...],
+) -> pd.Series:
+    for column in candidates:
+        if column not in frame.columns:
+            continue
+        values = pd.to_numeric(frame[column], errors="coerce")
+        if values.notna().any():
+            return values
+    return pd.Series(np.nan, index=frame.index, dtype="float64")
+
+
+def _extract_route_voltage_kv(routes: pd.DataFrame) -> pd.Series:
+    """Read route voltage from explicit fields, falling back to route labels."""
+    values = _first_numeric_source_column(
+        routes,
+        (
+            "v_nom_kv",
+            "voltage_kv",
+            "voltage",
+            "Voltage",
+            "V_NOM_KV",
+            "KV",
+            "kV",
+        ),
+    )
+    missing = values.isna()
+    if missing.any():
+        text = _combined_source_text(
+            routes,
+            ("Name", "FolderPath", "PopupInfo", "Snippet"),
+        )
+        labelled = text.str.extract(
+            r"(\d+(?:\.\d+)?)\s*kV\b",
+            flags=re.IGNORECASE,
+            expand=False,
+        )
+        values = values.combine_first(pd.to_numeric(labelled, errors="coerce"))
+    return values
+
+
+def _extract_route_capacity_mw(routes: pd.DataFrame) -> pd.Series:
+    """Read route power rating from explicit MW fields or labels when present."""
+    values = _first_numeric_source_column(
+        routes,
+        (
+            "capacity_mw",
+            "rating_mw",
+            "power_mw",
+            "CapacityMW",
+            "RatingMW",
+            "MW",
+        ),
+    )
+    missing = values.isna()
+    if missing.any():
+        text = _combined_source_text(
+            routes,
+            ("Name", "FolderPath", "PopupInfo", "Snippet"),
+        )
+        labelled = text.str.extract(
+            r"(\d+(?:\.\d+)?)\s*MW\b",
+            flags=re.IGNORECASE,
+            expand=False,
+        )
+        values = values.combine_first(pd.to_numeric(labelled, errors="coerce"))
+    return values
+
+
 def classify_generation(row: pd.Series) -> str:
     """Classify only explicit source labels; leave ambiguous assets unspecified."""
     text = " ".join(
@@ -272,13 +349,9 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
     )
     routes["route_id"] = [f"ROUTE_{index + 1:03d}" for index in routes.index]
     routes["name"] = routes["Name"].combine_first(routes["FolderPath"]).apply(_clean_label)
-    routes["voltage_kv_hint"] = (
-        routes[["Name", "FolderPath"]]
-        .fillna("")
-        .agg(" ".join, axis=1)
-        .str.extract(r"(\d+)\s*KV", expand=False)
-        .astype(float)
-    )
+    routes["v_nom_kv"] = _extract_route_voltage_kv(routes)
+    routes["capacity_mw"] = _extract_route_capacity_mw(routes)
+    routes["capacity_unit"] = "MW"
     routes["length_km"] = routes.to_crs(METRIC_CRS).length / 1000
     snapped_substations = snap_substations_to_routes(substations, routes)
 
@@ -368,7 +441,15 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
         index=False,
     )
     routes[
-        ["route_id", "name", "voltage_kv_hint", "length_km", "geometry"]
+        [
+            "route_id",
+            "name",
+            "v_nom_kv",
+            "capacity_mw",
+            "capacity_unit",
+            "length_km",
+            "geometry",
+        ]
     ].to_parquet(route_path)
     points[
         ["asset_id", "name", "asset_type", "PopupInfo", "geometry"]

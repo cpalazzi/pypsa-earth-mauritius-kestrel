@@ -1,8 +1,14 @@
 import geopandas as gpd
+import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from mu_star_energy.intake import snap_substations_to_routes, validate_collaborator_inputs
+from mu_star_energy.intake import (
+    _extract_route_capacity_mw,
+    _extract_route_voltage_kv,
+    snap_substations_to_routes,
+    validate_collaborator_inputs,
+)
 
 
 def test_collaborator_input_check_lists_missing_files(tmp_path):
@@ -41,3 +47,29 @@ def test_snap_substations_to_nearest_route_and_record_distance():
     assert snapped.loc[1, "snap_distance_m"] > 1_000
     assert snapped.loc[1, "geometry"].y == pytest.approx(-20.2, abs=1e-4)
     assert snapped.loc[1, "original_lat"] == pytest.approx(-20.21)
+
+
+def test_route_voltage_and_capacity_are_read_from_explicit_source_fields_or_labels():
+    routes = gpd.GeoDataFrame(
+        {
+            "Name": ["CEB 66 KV Line A / B", "unlabelled", "rated line"],
+            "FolderPath": ["", "", ""],
+            "voltage_kv": [None, 132, None],
+            "capacity_mw": [None, None, 40],
+            "geometry": [
+                LineString([(57.4, -20.2), (57.5, -20.2)]),
+                LineString([(57.5, -20.2), (57.6, -20.2)]),
+                LineString([(57.6, -20.2), (57.7, -20.2)]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+
+    voltage = _extract_route_voltage_kv(routes)
+    capacity = _extract_route_capacity_mw(routes)
+
+    assert voltage.iloc[0] == 66.0
+    assert voltage.iloc[1] == 132.0
+    assert pd.isna(voltage.iloc[2])
+    assert capacity.iloc[:2].isna().all()
+    assert capacity.iloc[2] == 40.0

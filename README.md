@@ -221,8 +221,11 @@ cutoff. The original coordinates remain available in `substations.parquet`.
 `PowerGrid.shp` contains vector line geometry, not just an image. However, it
 does not provide a complete electrical line register: most routes are unnamed,
 and the attributes do not identify endpoint substations, circuit counts,
-ratings or operating status. The separate `network_map_2025.png` is a reference
-image and is not used to construct topology.
+ratings or operating status. The intake table includes blank route-level
+columns for source voltage and MW line-rating values; those columns are only
+filled when the source columns or labels state them. The separate
+`network_map_2025.png` is a reference image and is not used to construct
+topology.
 
 Add `existing_lines.csv` only when those electrical connections are available
 from CEB records or another agreed source. The operational model does not

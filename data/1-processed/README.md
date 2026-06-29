@@ -76,10 +76,13 @@ Keep the same generator IDs. Include the source and a short note for any value
 that you add or correct manually.
 
 `transmission_routes.parquet` preserves the supplied vector line geometry for
-mapping and comparison. It is not converted into `existing_lines.csv` because
-the source attributes do not identify electrical endpoint substations or line
-ratings. Add `existing_lines.csv` when those data are available from an agreed
-source.
+mapping and comparison. It includes `v_nom_kv`, `capacity_mw`, and
+`capacity_unit` columns so explicit source voltage or MW line-rating values can
+be carried through when present. These fields remain blank when the supplied
+route data do not state them. The route geometry is not converted into
+`existing_lines.csv` because the source attributes do not identify electrical
+endpoint substations or complete line ratings. Add `existing_lines.csv` when
+those data are available from an agreed source.
 
 `substations.parquet` preserves the source point coordinates.
 `snapped_substations.parquet` moves every point to the nearest mapped

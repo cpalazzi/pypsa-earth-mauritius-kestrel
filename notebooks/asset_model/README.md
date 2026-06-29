@@ -22,6 +22,7 @@ network for interruption analysis.
 2. `01_operational_network.ipynb`
    - displays the transmission routes with the snapped substations;
    - does not derive electrical connections from route proximity;
+   - labels routes where source voltage or power-rating fields are populated;
    - can use OSM and GridFinder to estimate each substation's share of demand;
    - reports whether line capacities, generation data and demand are ready.
 3. `03_interruption_analysis.ipynb`
@@ -56,6 +57,10 @@ Add `existing_lines.csv` when an agreed source provides each line's endpoint
 substations, voltage, length and maximum power. The repository does not create
 this table from the mapped route geometry.
 
+The route table includes `v_nom_kv`, `capacity_mw`, and `capacity_unit` columns
+for source voltage and MW line-rating values. These stay blank where the
+supplied route data do not state those values.
+
 The present workflow checks for `demand_profile.csv` but does not yet read it
 and run the final outage calculation automatically. The notebook
 `03_interruption_analysis.ipynb` shows the current Python route:
@@ -87,6 +92,6 @@ The column names are kept because the code needs them:
   its voltage and capacity can appear on the network map.
 
 The maps show capacity labels only when reviewed values exist. At present the
-generator template contains no capacities, the line register is absent, and
-only one source route contains a voltage hint. Missing labels therefore mean
-missing input data, not zero capacity.
+generator template contains no capacities and the line register is absent.
+Voltage labels can come from route names or populated route columns; missing
+power-rating labels mean missing input data, not zero capacity.
