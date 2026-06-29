@@ -81,33 +81,48 @@ notebooks/
   `1-network` writes it; `2-interruption` loads it and never branches on source.
 - Keep numeric folder prefixes + a top-level `notebooks/README.md` run order.
   Islands and scenarios are parameters inside `1-network`, not extra folders.
+### Done in commit 10cf6a4
+- `network_source.py` + `build-network base|inferred` CLI + Snakemake rules
+  `build_base_network` / `build_inferred_network` save `<source>.nc` + metadata
+  to `data/1-processed/energy/networks/`.
+- Inferred graph → PyPSA tables convergence works; `base` blocked only on the
+  three reviewed CSVs (`lines`/`generators`/`demand_profile`).
+- `osmnx>=2` added to `pyproject.toml`; `network.py` lines carry an `AC` carrier
+  and a small resistance.
 
-### 1. Single builder, two sources
-- `network_source.py` now has `build_network(source, ...)`:
-  - `base` -> reviewed `lines`/`generators`/`demand_profile` CSVs (today's path);
-  - `inferred` -> OSM-road + GridFinder feeders, per island. Must emit the same
-    `lines`/buses/demand schema so `build_operational_network` and
-    `EnergyModel.simulate` are identical. The first convergence is implemented:
-    the graph in `distribution_network.py` can become a PyPSA network.
-- `2-interruption` only takes a saved network; it never branches on source.
+### 1. Notebook restructure (NOT done — main remaining task)
+- Migrate the three notebooks out of `notebooks/interruption_model/` into staged
+  folders with `git mv`: `00_data_intake` → `0-data_review/`,
+  `01_operational_network` → `1-network/`, `02_interruption_analysis` →
+  `2-interruption/`. Delete the stray untracked `notebooks/asset_model/`.
+- Update notebook **contents**: they still reference `existing_lines.csv` /
+  `existing_generators.csv` and the old variables — rename to `lines.csv` /
+  `generators.csv`. `1-network` drives `build_network(source=...)`;
+  `2-interruption` loads a saved `.nc` and never rebuilds.
+- Make `run-interruptions` / `2-interruption` consume `networks/<source>.nc`
+  instead of rebuilding from CSVs (runner currently rebuilds).
 
-### 2. OSM ingestion (run if not cached)
-- Add `osm.py` (osmnx + Overpass), cache to `0-incoming/energy/osm/<island>/`:
-  roads, `power=line/cable`, generators/substations, buildings. Islands:
-  Rodrigues, Agalega, St Brandon (near-empty - handle gracefully). Add `osmnx`
-  to `pyproject.toml`. GridFinder under `0-incoming/energy/gridfinder/`.
+### 2. Real OSM ingestion + islands (NOT done — osmnx unused)
+- Add `osm.py` (osmnx/Overpass), cache to `0-incoming/energy/osm/<island>/`:
+  roads, `power=line/cable`, generators/substations, buildings. Per island
+  (Rodrigues, Agalega, St Brandon — near-empty, handle gracefully) via an
+  `--island` option; build one isolated inferred network each. Today the
+  inferred build only uses passed files or the mainland PyPSA-Earth OSM
+  fallback, so make osmnx the primary path.
 
-### 3. Builder convergence + transformers
-- `inferred_graph -> tables` helper; add transformer/voltage support to
-  `network.py` (AC-lines-only today) so distribution hangs under transmission.
-  Capacities are estimates -> low/base/high sets, `inferred` flag, never in base.
+### 3. Transformers + voltage levels (NOT done)
+- Inferred is currently flat single-voltage (`inferred_voltage_kv`, default 11)
+  with generators attached to distribution nodes. Add transformer/voltage
+  support to `network.py` (AC-lines-only today) so distribution hangs under
+  transmission. Capacities are estimates → low/base/high sets, `inferred` flag,
+  never in base.
 
 ### 4. First-pass docs
 - One README per notebook folder (Purpose/Inputs/Outputs/Settings); update
   top-level README + DEVELOPMENT_NOTES module map; clear outputs before commit.
 
 Acceptance: `1-network` builds base or any island inferred grid and saves a
-network; `2-interruption` runs any saved network unchanged; tests green.
+network; `2-interruption` loads any saved network unchanged; tests green.
 
 ## Delivery prep
 
