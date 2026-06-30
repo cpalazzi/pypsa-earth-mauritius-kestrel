@@ -330,7 +330,7 @@ def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
 def _normalise_power_substations(
     power_features: gpd.GeoDataFrame | None,
     *,
-    island: str,
+    region: str,
 ) -> gpd.GeoDataFrame:
     if power_features is None or power_features.empty:
         return gpd.GeoDataFrame(
@@ -344,7 +344,7 @@ def _normalise_power_substations(
         substations = substations.set_crs("EPSG:4326")
     if "bus_id" not in substations.columns:
         substations["bus_id"] = [
-            f"{island.upper()}_SUB_{number:03d}"
+            f"{region.upper()}_SUB_{number:03d}"
             for number in range(1, len(substations) + 1)
         ]
     metric = substations.to_crs(METRIC_CRS)
@@ -366,11 +366,11 @@ def _normalise_power_substations(
     ).to_crs("EPSG:4326")
 
 
-def _provisional_root_substation(island: str, roads: gpd.GeoDataFrame | None) -> gpd.GeoDataFrame:
+def _provisional_root_substation(region: str, roads: gpd.GeoDataFrame | None) -> gpd.GeoDataFrame:
     centroid = _largest_road_component_centroid(roads)
     return gpd.GeoDataFrame(
         {
-            "bus_id": [f"{island.upper()}_SUB_001"],
+            "bus_id": [f"{region.upper()}_SUB_001"],
             "source": ["provisional_road_centroid"],
             "provisional_root": [True],
             "geometry": [centroid],
@@ -380,10 +380,10 @@ def _provisional_root_substation(island: str, roads: gpd.GeoDataFrame | None) ->
     )
 
 
-def _inferred_table_dir(output_dir: Path, island: str | None) -> Path:
-    if island is None:
+def _inferred_table_dir(output_dir: Path, region: str | None) -> Path:
+    if region is None:
         return output_dir / "inferred_distribution"
-    return output_dir / f"inferred_distribution-{island}"
+    return output_dir / f"inferred_distribution-{region}"
 
 
 def _substation_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
@@ -401,7 +401,7 @@ def _build_inferred_network(
     output_dir: Path,
     network_path: Path,
     metadata_path: Path,
-    island: str | None,
+    region: str | None,
     gridfinder_lines_path: Path | None,
     osm_distribution_lines_path: Path | None,
     allow_pypsa_earth_osm_fallback: bool,
@@ -411,16 +411,16 @@ def _build_inferred_network(
 ) -> NetworkBuildOutputs:
     fallback_path = None
     provisional_root = False
-    if island is not None:
-        roads_result = osm.fetch_osm_roads(island)
+    if region is not None:
+        roads_result = osm.fetch_osm_roads(region)
         osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
-        power_result = osm.fetch_osm_power_features(island)
+        power_result = osm.fetch_osm_power_features(region)
         substations = _normalise_power_substations(
             _coerce_vector_fetch_result(power_result),
-            island=island,
+            region=region,
         )
         if substations.empty:
-            substations = _provisional_root_substation(island, osm_distribution_lines)
+            substations = _provisional_root_substation(region, osm_distribution_lines)
             provisional_root = True
         gridfinder_lines = None
         generators = _empty_generators()
@@ -456,7 +456,7 @@ def _build_inferred_network(
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=max_anchor_distance_m,
     )
-    table_dir = _inferred_table_dir(output_dir, island)
+    table_dir = _inferred_table_dir(output_dir, region)
     inferred_tables = write_inferred_distribution_tables(
         graph,
         table_dir,
@@ -468,7 +468,7 @@ def _build_inferred_network(
         default_voltage_kv=inferred_voltage_kv,
         default_capacity_mva=inferred_capacity_mva,
     )
-    if island is None:
+    if region is None:
         reviewed_weights = pd.read_csv(service_weights_path)
         service_weights = _inferred_service_weights(graph, reviewed_weights, buses)
     else:
@@ -485,7 +485,7 @@ def _build_inferred_network(
             "source": "inferred",
             "input_dir": str(input_dir),
             "network": str(network_path),
-            "island": island,
+            "region": region,
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -527,7 +527,7 @@ def build_network(
     *,
     input_dir: Path | None = None,
     output_dir: Path | None = None,
-    island: str | None = None,
+    region: str | None = None,
     gridfinder_lines_path: Path | None = None,
     osm_distribution_lines_path: Path | None = None,
     allow_pypsa_earth_osm_fallback: bool = True,
@@ -537,15 +537,15 @@ def build_network(
 ) -> NetworkBuildOutputs:
     """Build and save a named network-source artifact."""
     source = source.lower()
-    if island is not None:
-        island = island.lower()
+    if region is not None:
+        region = region.lower()
         if source != "inferred":
-            raise ValueError("island can only be used with source='inferred'")
-        if island not in osm.ISLANDS:
-            raise ValueError(f"Unknown island {island!r}; choose from {sorted(osm.ISLANDS)}")
+            raise ValueError("region can only be used with source='inferred'")
+        if region not in osm.REGIONS:
+            raise ValueError(f"Unknown region {region!r}; choose from {sorted(osm.REGIONS)}")
     input_dir = Path(input_dir or processed_energy_dir() / "provided")
     output_dir = Path(output_dir or processed_energy_dir() / "networks")
-    output_stem = f"{source}-{island}" if island is not None else source
+    output_stem = f"{source}-{region}" if region is not None else source
     network_path = output_dir / f"{output_stem}.nc"
     metadata_path = output_dir / f"{output_stem}_metadata.json"
 
@@ -561,7 +561,7 @@ def build_network(
             output_dir=output_dir,
             network_path=network_path,
             metadata_path=metadata_path,
-            island=island,
+            region=region,
             gridfinder_lines_path=gridfinder_lines_path
             or incoming_energy_dir() / "gridfinder" / "grid.gpkg",
             osm_distribution_lines_path=osm_distribution_lines_path

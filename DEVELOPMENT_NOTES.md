@@ -149,8 +149,8 @@ factor for validation.
 derived from OSM roads (the GridFinder approach) at
 `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
 line extraction fallback when no cached GridFinder/OSM distribution file is
-present. `build-network inferred --island rodrigues` fetches cached OSM roads
-and power features for that island and writes
+present. `build-network inferred --region rodrigues` fetches cached OSM roads
+and power features for that region and writes
 `data/1-processed/energy/networks/inferred-rodrigues.nc`; if no power feature is
 available, the metadata marks a provisional root. The reviewed `base` topology
 network is still blocked until `lines.csv` and `generators.csv` are provided;

@@ -116,7 +116,7 @@ def test_build_inferred_network_for_island_uses_osm_fixtures(tmp_path, monkeypat
     roads = gpd.GeoDataFrame(
         {
             "source": ["osm_roads"],
-            "island": ["rodrigues"],
+            "region": ["rodrigues"],
             "geometry": [LineString([(63.42, -19.72), (63.421, -19.72)])],
         },
         crs="EPSG:4326",
@@ -124,7 +124,7 @@ def test_build_inferred_network_for_island_uses_osm_fixtures(tmp_path, monkeypat
     power = gpd.GeoDataFrame(
         {
             "source": ["osm_power"],
-            "island": ["rodrigues"],
+            "region": ["rodrigues"],
             "bus_id": ["RODRIGUES_SUB_001"],
             "geometry": [Point(63.42, -19.72)],
         },
@@ -133,17 +133,17 @@ def test_build_inferred_network_for_island_uses_osm_fixtures(tmp_path, monkeypat
 
     monkeypatch.setattr(
         "mu_star_energy.network_source.osm.fetch_osm_roads",
-        lambda island: roads,
+        lambda region: roads,
     )
     monkeypatch.setattr(
         "mu_star_energy.network_source.osm.fetch_osm_power_features",
-        lambda island: power,
+        lambda region: power,
     )
 
     output_dir = tmp_path / "processed" / "energy" / "networks"
     outputs = build_network(
         "inferred",
-        island="rodrigues",
+        region="rodrigues",
         input_dir=tmp_path / "inputs",
         output_dir=output_dir,
         max_anchor_distance_m=100,
@@ -155,7 +155,7 @@ def test_build_inferred_network_for_island_uses_osm_fixtures(tmp_path, monkeypat
     assert outputs.network.name == "inferred-rodrigues.nc"
     assert outputs.metadata.name == "inferred-rodrigues_metadata.json"
     assert outputs.inferred_nodes.parent.name == "inferred_distribution-rodrigues"
-    assert metadata["island"] == "rodrigues"
+    assert metadata["region"] == "rodrigues"
     assert metadata["road_edges"] == 1
     assert metadata["anchored_substations"] == 1
     assert metadata["provisional_root"] is False

@@ -2,8 +2,8 @@
 
 Purpose: review network inputs, choose `source = "base"` or `"inferred"` and
 build and save a PyPSA network under `data/1-processed/energy/networks/`.
-Notebooks: `00_build_network.ipynb`, and `01_demand_settings.ipynb` (draft) for
-the demand profile.
+Notebooks: `00_build_network.ipynb` (the network) and
+`01_demand_settings.ipynb` (the demand profile).
 
 Inputs:
 
@@ -15,9 +15,9 @@ Inputs:
 Outputs:
 
 - `data/1-processed/energy/networks/base.nc` when reviewed base inputs exist;
-- `data/1-processed/energy/networks/inferred.nc` for the inferred network derived from OSM roads (the GridFinder approach);
-- `data/1-processed/energy/networks/inferred-<island>.nc` when
-  `build-network inferred --island <island>` is used;
+- `data/1-processed/energy/networks/inferred.nc` derived from OSM/GridFinder routes;
+- `data/1-processed/energy/networks/inferred-<region>.nc` when
+  `build-network inferred --region <region>` is used;
 - matching metadata JSON and inferred graph review tables.
 
 Settings users may change: `NETWORK_SOURCE`, anchor distance and inferred

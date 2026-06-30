@@ -1,9 +1,9 @@
-"""Fetch OSM road networks per island as inferred distribution-line geometry.
+"""Fetch OSM road networks for a region as inferred distribution-line geometry.
 
 OSM roads are a proxy for where the low-voltage network runs; they are not
 confirmed engineering data, so any network built from them stays labelled as
-inferred. Fetching needs internet access (the OSM Overpass API), so results are
-cached under ``data/0-incoming/energy/osm/<island>/roads.parquet``.
+inferred. Fetching needs internet (the OSM Overpass API), so results are cached
+under ``data/0-incoming/energy/osm/<region>/roads.parquet``.
 """
 
 from __future__ import annotations
@@ -15,13 +15,12 @@ import geopandas as gpd
 
 from mu_star_energy.paths import incoming_energy_dir
 
-# OSM/Nominatim place queries for the main island and outer islands.
-# "Mauritius" alone resolves to the country boundary, which spans Rodrigues,
-# Agalega and St Brandon; use the explicit island relation for the main island.
-# Run island builds separately for each island that should be represented.
-# St Brandon is a near-empty fishing station, so an empty road network is
-# expected and handled gracefully.
-ISLANDS: dict[str, str] = {
+# Each key maps a region name to its OSM/Nominatim query; fetch one region at a
+# time. For Mauritius the keys are "mauritius" (the main island only -- the bare
+# country name "Mauritius" would also pull in the outer islands), "rodrigues",
+# "agalega" and "st_brandon" (sparsely mapped, so an empty road network is
+# expected). Add a key here to reuse this workflow for another area.
+REGIONS: dict[str, str] = {
     "mauritius": "Mauritius Island, Mauritius",
     "rodrigues": "Rodrigues, Mauritius",
     "agalega": "Agalega, Mauritius",
@@ -33,22 +32,22 @@ GEOGRAPHIC_CRS = "EPSG:4326"
 
 @dataclass(frozen=True)
 class OSMRoadsOutput:
-    island: str
+    region: str
     path: Path
     edge_count: int
 
 
-def osm_roads_path(island: str) -> Path:
-    return incoming_energy_dir() / "osm" / island.lower() / "roads.parquet"
+def osm_roads_path(region: str) -> Path:
+    return incoming_energy_dir() / "osm" / region.lower() / "roads.parquet"
 
 
-def osm_power_path(island: str) -> Path:
-    return incoming_energy_dir() / "osm" / island.lower() / "power.parquet"
+def osm_power_path(region: str) -> Path:
+    return incoming_energy_dir() / "osm" / region.lower() / "power.parquet"
 
 
-def _empty_roads(island: str) -> gpd.GeoDataFrame:
+def _empty_roads(region: str) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
-        {"source": [], "island": [], "geometry": []},
+        {"source": [], "region": [], "geometry": []},
         geometry="geometry",
         crs=GEOGRAPHIC_CRS,
     )
@@ -56,35 +55,35 @@ def _empty_roads(island: str) -> gpd.GeoDataFrame:
 
 def _empty_power_features() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
-        {"source": [], "island": [], "bus_id": [], "power": [], "geometry": []},
+        {"source": [], "region": [], "bus_id": [], "power": [], "geometry": []},
         geometry="geometry",
         crs=GEOGRAPHIC_CRS,
     )
 
 
-def _validate_island(island: str) -> str:
-    island = island.lower()
-    if island not in ISLANDS:
-        raise ValueError(f"Unknown island {island!r}; choose from {sorted(ISLANDS)}")
-    return island
+def _validate_region(region: str) -> str:
+    region = region.lower()
+    if region not in REGIONS:
+        raise ValueError(f"Unknown region {region!r}; choose from {sorted(REGIONS)}")
+    return region
 
 
 def fetch_osm_roads(
-    island: str,
+    region: str,
     *,
     network_type: str = "drive",
     overwrite: bool = False,
 ) -> OSMRoadsOutput:
-    """Download the OSM road network for an island and cache it as LineStrings.
+    """Download the OSM road network for a region and cache it as LineStrings.
 
-    Returns the cached file unless ``overwrite`` is set. Islands with no mapped
+    Returns the cached file unless ``overwrite`` is set. Regions with no mapped
     roads (e.g. St Brandon) cache an empty layer rather than failing.
     """
-    island = _validate_island(island)
+    region = _validate_region(region)
 
-    path = osm_roads_path(island)
+    path = osm_roads_path(region)
     if path.exists() and not overwrite:
-        return OSMRoadsOutput(island, path, len(gpd.read_parquet(path)))
+        return OSMRoadsOutput(region, path, len(gpd.read_parquet(path)))
 
     import osmnx as ox  # imported lazily; needs network access
 
@@ -97,23 +96,23 @@ def fetch_osm_roads(
         InsufficientResponseError = Exception  # type: ignore[assignment]
 
     try:
-        graph = ox.graph_from_place(ISLANDS[island], network_type=network_type)
+        graph = ox.graph_from_place(REGIONS[region], network_type=network_type)
         roads = ox.graph_to_gdfs(graph, nodes=False).reset_index()[["geometry"]]
         roads["source"] = "osm_roads"
-        roads["island"] = island
-        roads = roads[["source", "island", "geometry"]]
+        roads["region"] = region
+        roads = roads[["source", "region", "geometry"]]
     except InsufficientResponseError:
-        roads = _empty_roads(island)
+        roads = _empty_roads(region)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     roads.to_parquet(path)
-    return OSMRoadsOutput(island, path, len(roads))
+    return OSMRoadsOutput(region, path, len(roads))
 
 
-def fetch_osm_power_features(island: str, *, overwrite: bool = False) -> Path:
-    """Download OSM power features for an island and cache them as bus points."""
-    island = _validate_island(island)
-    path = osm_power_path(island)
+def fetch_osm_power_features(region: str, *, overwrite: bool = False) -> Path:
+    """Download OSM power features for a region and cache them as bus points."""
+    region = _validate_region(region)
+    path = osm_power_path(region)
     if path.exists() and not overwrite:
         return path
 
@@ -128,7 +127,7 @@ def fetch_osm_power_features(island: str, *, overwrite: bool = False) -> Path:
 
     try:
         features = ox.features_from_place(
-            ISLANDS[island],
+            REGIONS[region],
             tags={"power": ["substation", "plant", "generator"]},
         )
         if features.empty:
@@ -146,9 +145,9 @@ def fetch_osm_power_features(island: str, *, overwrite: bool = False) -> Path:
             power = gpd.GeoDataFrame(
                 {
                     "source": "osm_power",
-                    "island": island,
+                    "region": region,
                     "bus_id": [
-                        f"{island.upper()}_SUB_{number:03d}"
+                        f"{region.upper()}_SUB_{number:03d}"
                         for number in range(1, len(metric) + 1)
                     ],
                     "power": power_values,
