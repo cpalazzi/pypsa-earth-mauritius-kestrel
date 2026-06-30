@@ -16,8 +16,8 @@ Inputs:
 Outputs:
 
 - `data/1-processed/energy/networks/base.nc` when reviewed base inputs exist;
-- `data/1-processed/energy/networks/inferred.nc` for labelled inferred
-  structural scenarios;
+- `data/1-processed/energy/networks/inferred.nc` for the OSM-derived inferred
+  network;
 - matching metadata JSON and inferred graph review tables.
 
 Settings users may change: `NETWORK_SOURCE`, anchor distance and inferred

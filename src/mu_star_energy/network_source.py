@@ -168,7 +168,7 @@ def _load_demand_profile(input_dir: Path, *, allow_provisional_demand: bool) -> 
         return _latest_peak_demand_profile(input_dir)
     raise FileNotFoundError(
         f"{path} is missing. Supply a reviewed demand profile, or pass "
-        "--allow-provisional-demand for a one-snapshot structural network."
+        "--allow-provisional-demand for a one-snapshot network."
     )
 
 

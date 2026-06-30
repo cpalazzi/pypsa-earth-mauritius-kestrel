@@ -144,8 +144,8 @@ generator is available up to its full installed capacity in every time step.
 Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
 factor for validation.
-`build-network inferred --allow-provisional-demand` currently writes a
-structural inferred network at
+`build-network inferred --allow-provisional-demand` currently writes an
+OSM-derived inferred network at
 `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
 line extraction fallback when no cached GridFinder/OSM distribution file is
 present. The reviewed `base` network is still blocked until `lines.csv`,

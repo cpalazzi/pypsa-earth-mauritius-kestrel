@@ -108,6 +108,6 @@ highlights movements for attention; it does not exclude a point.
 
 The optional `inferred_distribution/` files are produced only by the explicit
 inferred network build. They are connectivity-only GridFinder/OSM graph tables
-for review and are not confirmed electrical line assets. `inferred.nc` is a
-PyPSA network artifact for structural testing; it remains inferred and separate
+for review and are not confirmed electrical line assets. `inferred.nc` is an
+OSM-derived PyPSA network for testing; it remains inferred and separate
 from the reviewed `base.nc` network.

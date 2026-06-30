@@ -121,7 +121,7 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
 
    `base` needs the reviewed inputs below and fails rather than guessing missing
    values. `build-network inferred --allow-provisional-demand` writes a
-   labelled structural network from OSM/GridFinder routes, for testing only.
+   network derived from OSM/GridFinder routes, for testing before reviewed data exists.
 
 5. **Run interruptions:**
 
@@ -158,8 +158,8 @@ so a dated `demand_profile.csv` must come from CEB or another documented source.
 The low-voltage distribution network is unavailable, so it is not part of the
 electrical calculation. OSM and GridFinder lines are used only to estimate each
 substation's share of demand by nearest-line length. The `inferred` network
-build turns those routes into a labelled, explicitly separate structural
-scenario — never merged into the reviewed `base` inputs.
+build derives a network from those OSM roads (the GridFinder approach), kept
+labelled and separate — never merged into the reviewed `base` inputs.
 
 ## Guardrails
 

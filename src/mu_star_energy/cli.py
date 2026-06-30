@@ -161,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "For source=inferred only, use monthly_peak_demand_mw.csv as a "
-            "one-snapshot structural demand profile when demand_profile.csv is absent."
+            "one-snapshot demand profile when demand_profile.csv is absent."
         ),
     )
     build.add_argument("--max-anchor-distance-m", type=float, default=500)
