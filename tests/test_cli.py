@@ -16,3 +16,12 @@ def test_run_interruptions_network_selector_is_unambiguous():
                 "base",
             ]
         )
+
+
+def test_build_network_accepts_inferred_island_selector():
+    parser = build_parser()
+
+    args = parser.parse_args(["build-network", "inferred", "--island", "rodrigues"])
+
+    assert args.source == "inferred"
+    assert args.island == "rodrigues"

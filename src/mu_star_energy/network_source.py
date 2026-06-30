@@ -12,7 +12,9 @@ import networkx as nx
 import pandas as pd
 import pypsa
 from shapely.geometry import Point
+from shapely.ops import unary_union
 
+import mu_star_energy.osm as osm
 from mu_star_energy.distribution_network import (
     METRIC_CRS,
     build_inferred_distribution_graph,
@@ -36,6 +38,15 @@ class NetworkBuildOutputs:
     inferred_nodes: Path | None = None
     inferred_edges: Path | None = None
     inferred_metadata: Path | None = None
+
+
+def _coerce_vector_fetch_result(result: object) -> gpd.GeoDataFrame | None:
+    if isinstance(result, gpd.GeoDataFrame):
+        return result
+    path = getattr(result, "path", result)
+    if path is None:
+        return None
+    return _read_optional_vector(Path(path))
 
 
 def _read_optional_vector(path: Path | None) -> gpd.GeoDataFrame | None:
@@ -186,6 +197,18 @@ def _graph_line_frame(
     default_voltage_kv: float,
     default_capacity_mva: float,
 ) -> gpd.GeoDataFrame:
+    columns = [
+        "line_id",
+        "bus0",
+        "bus1",
+        "v_nom_kv",
+        "length_km",
+        "s_nom_mva",
+        "inferred",
+        "source",
+        "stage",
+        "geometry",
+    ]
     rows = []
     for number, (bus0, bus1, attrs) in enumerate(graph.edges(data=True), start=1):
         if bus0 == bus1:
@@ -205,7 +228,24 @@ def _graph_line_frame(
                 "geometry": Point(float(node0["x"]), float(node0["y"])),
             }
         )
-    return gpd.GeoDataFrame(rows, geometry="geometry", crs=METRIC_CRS).to_crs("EPSG:4326")
+    return gpd.GeoDataFrame(
+        rows,
+        columns=columns,
+        geometry="geometry",
+        crs=METRIC_CRS,
+    ).to_crs("EPSG:4326")
+
+
+def _equal_service_weights(bus_frame: gpd.GeoDataFrame) -> pd.DataFrame:
+    bus_ids = bus_frame["bus_id"].astype(str)
+    if bus_ids.empty:
+        return pd.DataFrame(columns=["bus_id", "service_weight"])
+    return pd.DataFrame(
+        {
+            "bus_id": bus_ids,
+            "service_weight": [1 / len(bus_ids)] * len(bus_ids),
+        }
+    )
 
 
 def _inferred_service_weights(
@@ -248,12 +288,120 @@ def _fallback_pypsa_earth_osm_lines() -> Path | None:
     return path if path.exists() else None
 
 
+def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
+    if roads is None or roads.empty:
+        return Point(0.0, 0.0)
+
+    prepared = roads.to_crs(METRIC_CRS).explode(index_parts=False).copy()
+    prepared = prepared[prepared.geometry.geom_type.eq("LineString")]
+    if prepared.empty:
+        return Point(0.0, 0.0)
+
+    road_graph = nx.Graph()
+    for row in prepared.itertuples():
+        coords = list(row.geometry.coords)
+        start = (round(float(coords[0][0]), 1), round(float(coords[0][1]), 1))
+        end = (round(float(coords[-1][0]), 1), round(float(coords[-1][1]), 1))
+        if start == end:
+            continue
+        road_graph.add_edge(
+            start,
+            end,
+            geometry=row.geometry,
+            length=float(row.geometry.length),
+        )
+    if road_graph.number_of_edges() == 0:
+        centroid = unary_union(list(prepared.geometry)).centroid
+    else:
+        component = max(
+            nx.connected_components(road_graph),
+            key=lambda nodes: road_graph.subgraph(nodes).size(weight="length"),
+        )
+        component_lines = [
+            attrs["geometry"]
+            for start, end, attrs in road_graph.edges(data=True)
+            if start in component and end in component
+        ]
+        centroid = unary_union(component_lines).centroid
+
+    return gpd.GeoSeries([centroid], crs=METRIC_CRS).to_crs("EPSG:4326").iloc[0]
+
+
+def _normalise_power_substations(
+    power_features: gpd.GeoDataFrame | None,
+    *,
+    island: str,
+) -> gpd.GeoDataFrame:
+    if power_features is None or power_features.empty:
+        return gpd.GeoDataFrame(
+            {"bus_id": [], "source": [], "provisional_root": [], "geometry": []},
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+
+    substations = power_features.copy()
+    if substations.crs is None:
+        substations = substations.set_crs("EPSG:4326")
+    if "bus_id" not in substations.columns:
+        substations["bus_id"] = [
+            f"{island.upper()}_SUB_{number:03d}"
+            for number in range(1, len(substations) + 1)
+        ]
+    metric = substations.to_crs(METRIC_CRS)
+    geometry = metric.geometry
+    non_points = ~geometry.geom_type.eq("Point")
+    if non_points.any():
+        geometry = geometry.copy()
+        geometry.loc[non_points] = geometry.loc[non_points].centroid
+    return gpd.GeoDataFrame(
+        {
+            "bus_id": substations["bus_id"].astype(str).to_numpy(),
+            "source": substations["source"].astype(str).to_numpy()
+            if "source" in substations
+            else ["osm_power"] * len(substations),
+            "provisional_root": [False] * len(substations),
+        },
+        geometry=geometry,
+        crs=METRIC_CRS,
+    ).to_crs("EPSG:4326")
+
+
+def _provisional_root_substation(island: str, roads: gpd.GeoDataFrame | None) -> gpd.GeoDataFrame:
+    centroid = _largest_road_component_centroid(roads)
+    return gpd.GeoDataFrame(
+        {
+            "bus_id": [f"{island.upper()}_SUB_001"],
+            "source": ["provisional_road_centroid"],
+            "provisional_root": [True],
+            "geometry": [centroid],
+        },
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+
+
+def _inferred_table_dir(output_dir: Path, island: str | None) -> Path:
+    if island is None:
+        return output_dir / "inferred_distribution"
+    return output_dir / f"inferred_distribution-{island}"
+
+
+def _substation_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
+    statuses = [
+        attrs.get("anchor_status")
+        for _, attrs in graph.nodes(data=True)
+        if attrs.get("kind") == "substation"
+    ]
+    return statuses.count("anchored"), statuses.count("unanchored")
+
+
 def _build_inferred_network(
     *,
     input_dir: Path,
     output_dir: Path,
     network_path: Path,
     metadata_path: Path,
+    island: str | None,
     gridfinder_lines_path: Path | None,
     osm_distribution_lines_path: Path | None,
     allow_pypsa_earth_osm_fallback: bool,
@@ -261,36 +409,57 @@ def _build_inferred_network(
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
 ) -> NetworkBuildOutputs:
-    substations_path = input_dir / "snapped_substations.parquet"
-    service_weights_path = input_dir / "service_weights.csv"
-    if not substations_path.exists() or not service_weights_path.exists():
-        raise FileNotFoundError(
-            "Inferred network build requires snapped_substations.parquet and "
-            "service_weights.csv from prepare-assets."
-        )
-
     fallback_path = None
-    gridfinder_lines = _read_optional_vector(gridfinder_lines_path)
-    osm_distribution_lines = _read_optional_vector(osm_distribution_lines_path)
-    if gridfinder_lines is None and osm_distribution_lines is None and allow_pypsa_earth_osm_fallback:
-        fallback_path = _fallback_pypsa_earth_osm_lines()
-        osm_distribution_lines = _read_optional_vector(fallback_path)
-
-    if gridfinder_lines is None and osm_distribution_lines is None:
-        raise FileNotFoundError(
-            "No GridFinder, OSM distribution, or PyPSA-Earth OSM line file is available."
+    provisional_root = False
+    if island is not None:
+        roads_result = osm.fetch_osm_roads(island)
+        osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
+        power_result = osm.fetch_osm_power_features(island)
+        substations = _normalise_power_substations(
+            _coerce_vector_fetch_result(power_result),
+            island=island,
         )
+        if substations.empty:
+            substations = _provisional_root_substation(island, osm_distribution_lines)
+            provisional_root = True
+        gridfinder_lines = None
+        generators = _empty_generators()
+    else:
+        substations_path = input_dir / "snapped_substations.parquet"
+        service_weights_path = input_dir / "service_weights.csv"
+        if not substations_path.exists() or not service_weights_path.exists():
+            raise FileNotFoundError(
+                "Inferred network build requires snapped_substations.parquet and "
+                "service_weights.csv from prepare-assets."
+            )
 
-    substations = gpd.read_parquet(substations_path)
+        gridfinder_lines = _read_optional_vector(gridfinder_lines_path)
+        osm_distribution_lines = _read_optional_vector(osm_distribution_lines_path)
+        if (
+            gridfinder_lines is None
+            and osm_distribution_lines is None
+            and allow_pypsa_earth_osm_fallback
+        ):
+            fallback_path = _fallback_pypsa_earth_osm_lines()
+            osm_distribution_lines = _read_optional_vector(fallback_path)
+
+        if gridfinder_lines is None and osm_distribution_lines is None:
+            raise FileNotFoundError(
+                "No GridFinder, OSM distribution, or PyPSA-Earth OSM line file is available."
+            )
+        substations = gpd.read_parquet(substations_path)
+        generators = _load_generators(input_dir, inferred_bus_ids=True)
+
     graph = build_inferred_distribution_graph(
         substations,
         gridfinder_lines=gridfinder_lines,
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=max_anchor_distance_m,
     )
+    table_dir = _inferred_table_dir(output_dir, island)
     inferred_tables = write_inferred_distribution_tables(
         graph,
-        output_dir / "inferred_distribution",
+        table_dir,
     )
 
     buses = _node_bus_frame(graph)
@@ -299,13 +468,16 @@ def _build_inferred_network(
         default_voltage_kv=inferred_voltage_kv,
         default_capacity_mva=inferred_capacity_mva,
     )
-    generators = _load_generators(input_dir, inferred_bus_ids=True)
-    reviewed_weights = pd.read_csv(service_weights_path)
-    service_weights = _inferred_service_weights(graph, reviewed_weights, buses)
-    service_weights_path_out = output_dir / "inferred_distribution" / "service_weights.csv"
+    if island is None:
+        reviewed_weights = pd.read_csv(service_weights_path)
+        service_weights = _inferred_service_weights(graph, reviewed_weights, buses)
+    else:
+        service_weights = _equal_service_weights(buses)
+    service_weights_path_out = table_dir / "service_weights.csv"
     service_weights.to_csv(service_weights_path_out, index=False)
 
     network = build_topology_network(buses, lines, generators)
+    anchored, unanchored = _substation_anchor_counts(graph)
     _write_network(network_path, network)
     _write_metadata(
         metadata_path,
@@ -313,6 +485,7 @@ def _build_inferred_network(
             "source": "inferred",
             "input_dir": str(input_dir),
             "network": str(network_path),
+            "island": island,
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -329,6 +502,12 @@ def _build_inferred_network(
             else None,
             "pypsa_earth_osm_fallback": str(fallback_path) if fallback_path else None,
             "service_weights": str(service_weights_path_out),
+            "road_edges": len(osm_distribution_lines)
+            if osm_distribution_lines is not None
+            else 0,
+            "anchored_substations": anchored,
+            "unanchored_substations": unanchored,
+            "provisional_root": provisional_root,
             "inferred_voltage_kv": inferred_voltage_kv,
             "inferred_capacity_mva": inferred_capacity_mva,
             "max_anchor_distance_m": max_anchor_distance_m,
@@ -348,6 +527,7 @@ def build_network(
     *,
     input_dir: Path | None = None,
     output_dir: Path | None = None,
+    island: str | None = None,
     gridfinder_lines_path: Path | None = None,
     osm_distribution_lines_path: Path | None = None,
     allow_pypsa_earth_osm_fallback: bool = True,
@@ -357,10 +537,17 @@ def build_network(
 ) -> NetworkBuildOutputs:
     """Build and save a named network-source artifact."""
     source = source.lower()
+    if island is not None:
+        island = island.lower()
+        if source != "inferred":
+            raise ValueError("island can only be used with source='inferred'")
+        if island not in osm.ISLANDS:
+            raise ValueError(f"Unknown island {island!r}; choose from {sorted(osm.ISLANDS)}")
     input_dir = Path(input_dir or processed_energy_dir() / "collaborator")
     output_dir = Path(output_dir or processed_energy_dir() / "networks")
-    network_path = output_dir / f"{source}.nc"
-    metadata_path = output_dir / f"{source}_metadata.json"
+    output_stem = f"{source}-{island}" if island is not None else source
+    network_path = output_dir / f"{output_stem}.nc"
+    metadata_path = output_dir / f"{output_stem}_metadata.json"
 
     if source == "base":
         return _build_base_network(
@@ -374,6 +561,7 @@ def build_network(
             output_dir=output_dir,
             network_path=network_path,
             metadata_path=metadata_path,
+            island=island,
             gridfinder_lines_path=gridfinder_lines_path
             or incoming_energy_dir() / "gridfinder" / "grid.gpkg",
             osm_distribution_lines_path=osm_distribution_lines_path

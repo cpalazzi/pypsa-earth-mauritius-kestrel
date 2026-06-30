@@ -110,3 +110,55 @@ def test_build_inferred_network_exports_network_and_graph_tables(tmp_path):
     assert metadata["has_demand"] is False
     assert metadata["loads"] == 0
     assert (outputs.inferred_nodes.parent / "service_weights.csv").is_file()
+
+
+def test_build_inferred_network_for_island_uses_osm_fixtures(tmp_path, monkeypatch):
+    roads = gpd.GeoDataFrame(
+        {
+            "source": ["osm_roads"],
+            "island": ["rodrigues"],
+            "geometry": [LineString([(63.42, -19.72), (63.421, -19.72)])],
+        },
+        crs="EPSG:4326",
+    )
+    power = gpd.GeoDataFrame(
+        {
+            "source": ["osm_power"],
+            "island": ["rodrigues"],
+            "bus_id": ["RODRIGUES_SUB_001"],
+            "geometry": [Point(63.42, -19.72)],
+        },
+        crs="EPSG:4326",
+    )
+
+    monkeypatch.setattr(
+        "mu_star_energy.network_source.osm.fetch_osm_roads",
+        lambda island: roads,
+    )
+    monkeypatch.setattr(
+        "mu_star_energy.network_source.osm.fetch_osm_power_features",
+        lambda island: power,
+    )
+
+    output_dir = tmp_path / "processed" / "energy" / "networks"
+    outputs = build_network(
+        "inferred",
+        island="rodrigues",
+        input_dir=tmp_path / "inputs",
+        output_dir=output_dir,
+        max_anchor_distance_m=100,
+    )
+
+    metadata = json.loads(outputs.metadata.read_text())
+    network = pypsa.Network(outputs.network)
+
+    assert outputs.network.name == "inferred-rodrigues.nc"
+    assert outputs.metadata.name == "inferred-rodrigues_metadata.json"
+    assert outputs.inferred_nodes.parent.name == "inferred_distribution-rodrigues"
+    assert metadata["island"] == "rodrigues"
+    assert metadata["road_edges"] == 1
+    assert metadata["anchored_substations"] == 1
+    assert metadata["provisional_root"] is False
+    assert metadata["has_demand"] is False
+    assert network.loads.empty
+    assert len(network.lines) >= 1

@@ -15,6 +15,7 @@ from mu_star_energy.distribution_network import (
 )
 from mu_star_energy.intake import prepare_collaborator_data
 from mu_star_energy.network_source import build_network
+from mu_star_energy.osm import ISLANDS
 from mu_star_energy.paths import incoming_energy_dir, output_energy_dir, processed_energy_dir
 from mu_star_energy.runner import run_interruption_analysis
 
@@ -55,6 +56,7 @@ def _build_network(args: argparse.Namespace) -> None:
         args.source,
         input_dir=args.input_dir,
         output_dir=args.output_dir,
+        island=args.island,
         gridfinder_lines_path=args.gridfinder_lines,
         osm_distribution_lines_path=args.osm_distribution_lines,
         allow_pypsa_earth_osm_fallback=not args.no_pypsa_earth_osm_fallback,
@@ -118,6 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     build = subparsers.add_parser("build-network")
     build.add_argument("source", choices=["base", "inferred"])
+    build.add_argument(
+        "--island",
+        choices=sorted(ISLANDS),
+        default=None,
+        help="Build an inferred network from cached or fetched OSM roads for one island.",
+    )
     build.add_argument(
         "--input-dir",
         type=Path,

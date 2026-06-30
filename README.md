@@ -122,7 +122,8 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
    `base` needs the reviewed topology inputs below and fails rather than
    guessing missing values. `build-network inferred` writes a topology-only
    network derived from OSM roads (the GridFinder approach), for testing before
-   reviewed data exists.
+   reviewed data exists. For an outer-island build, use
+   `build-network inferred --island rodrigues`.
 
 5. **Run interruptions:**
 
