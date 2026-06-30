@@ -11,6 +11,8 @@ from mu_star_energy.osm import (
 
 def test_island_registry_and_path():
     assert {"rodrigues", "agalega", "st_brandon"} <= set(ISLANDS)
+    assert ISLANDS["mauritius"] == "Mauritius Island, Mauritius"
+    assert ISLANDS["mauritius"] != "Mauritius"
     assert osm_roads_path("Rodrigues").name == "roads.parquet"
     assert osm_roads_path("Rodrigues").parent.name == "rodrigues"
     assert osm_power_path("Rodrigues").name == "power.parquet"

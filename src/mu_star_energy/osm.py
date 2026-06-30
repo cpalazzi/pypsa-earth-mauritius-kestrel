@@ -15,10 +15,14 @@ import geopandas as gpd
 
 from mu_star_energy.paths import incoming_energy_dir
 
-# Mauritius and its outer islands. St Brandon is a near-empty fishing station,
-# so an empty road network is expected and handled gracefully.
+# OSM/Nominatim place queries for the main island and outer islands.
+# "Mauritius" alone resolves to the country boundary, which spans Rodrigues,
+# Agalega and St Brandon; use the explicit island relation for the main island.
+# Run island builds separately for each island that should be represented.
+# St Brandon is a near-empty fishing station, so an empty road network is
+# expected and handled gracefully.
 ISLANDS: dict[str, str] = {
-    "mauritius": "Mauritius",
+    "mauritius": "Mauritius Island, Mauritius",
     "rodrigues": "Rodrigues, Mauritius",
     "agalega": "Agalega, Mauritius",
     "st_brandon": "Saint Brandon, Mauritius",

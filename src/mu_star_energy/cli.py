@@ -124,7 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--island",
         choices=sorted(ISLANDS),
         default=None,
-        help="Build an inferred network from cached or fetched OSM roads for one island.",
+        help=(
+            "Build an inferred network from cached or fetched OSM roads for one "
+            "island: mauritius is the main island only; outer islands are separate."
+        ),
     )
     build.add_argument(
         "--input-dir",

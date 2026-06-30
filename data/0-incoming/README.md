@@ -37,6 +37,12 @@ The inferred distribution-network command reads GridFinder from
 provider/source column in any replacement file so inferred routes remain
 distinguishable from reviewed CEB assets.
 
+For island-specific inferred builds, `mu-star-energy build-network inferred
+--island <island>` fetches missing OSM roads and power features into
+`energy/osm/<island>/`. Use `mauritius` for the main island only; Rodrigues,
+Agalega and St Brandon are separate island choices. Cached OSM extracts are
+local data artifacts and are not committed to git.
+
 You can change the main data location with `MU_STAR_DATA_ROOT` or add folders
 for new data providers. If a new file has different columns or a different
 format, update the reading code and describe the difference. Do not rename the
