@@ -176,27 +176,31 @@ def fetch_osm_power_features(
             power = _empty_power_features()
         else:
             features = features[features.geometry.notna()].copy()
-            if features.crs is None:
-                features = features.set_crs(GEOGRAPHIC_CRS)
-            metric = features.to_crs("EPSG:32740")
-            power_values = (
-                features["power"].astype(str).to_numpy()
-                if "power" in features
-                else [""] * len(metric)
-            )
-            power = gpd.GeoDataFrame(
-                {
-                    "source": "osm_power",
-                    "region": slug,
-                    "bus_id": [
-                        f"{slug.upper()}_SUB_{number:03d}"
-                        for number in range(1, len(metric) + 1)
-                    ],
-                    "power": power_values,
-                },
-                geometry=metric.geometry.centroid,
-                crs="EPSG:32740",
-            ).to_crs(GEOGRAPHIC_CRS)
+            if features.empty:
+                power = _empty_power_features()
+            else:
+                features = features.reset_index(drop=True)
+                if features.crs is None:
+                    features = features.set_crs(GEOGRAPHIC_CRS)
+                metric = features.to_crs("EPSG:32740")
+                power_values = (
+                    features["power"].astype(str).to_numpy()
+                    if "power" in features
+                    else [""] * len(metric)
+                )
+                power = gpd.GeoDataFrame(
+                    {
+                        "source": "osm_power",
+                        "region": slug,
+                        "bus_id": [
+                            f"{slug.upper()}_SUB_{number:03d}"
+                            for number in range(1, len(metric) + 1)
+                        ],
+                        "power": power_values,
+                    },
+                    geometry=metric.geometry.centroid.reset_index(drop=True),
+                    crs="EPSG:32740",
+                ).to_crs(GEOGRAPHIC_CRS)
     except InsufficientResponseError:
         power = _empty_power_features()
 
