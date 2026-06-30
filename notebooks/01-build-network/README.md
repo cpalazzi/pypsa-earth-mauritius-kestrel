@@ -15,8 +15,7 @@ Inputs:
 Outputs:
 
 - `data/1-processed/energy/networks/base.nc` when reviewed base inputs exist;
-- `data/1-processed/energy/networks/inferred.nc` for the OSM-derived inferred
-  network;
+- `data/1-processed/energy/networks/inferred.nc` for the inferred network derived from OSM roads (the GridFinder approach);
 - `data/1-processed/energy/networks/inferred-<island>.nc` when
   `build-network inferred --island <island>` is used;
 - matching metadata JSON and inferred graph review tables.

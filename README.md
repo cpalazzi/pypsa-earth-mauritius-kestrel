@@ -94,7 +94,7 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
 
 ## Workflow
 
-1. **Place source data** under `data/0-incoming/energy/collaborator/` (the
+1. **Place source data** under `data/0-incoming/energy/provided/` (the
    `power_demand`, `power_transmission`, `substation` and `generation_source`
    folders described in `data/0-incoming/README.md`). Keep source files
    unchanged. To use a shared or OneDrive tree, set `MU_STAR_DATA_ROOT` to a
@@ -131,7 +131,7 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
    .venv/bin/python -m mu_star_energy.cli run-interruptions \
      --network data/1-processed/energy/networks/base.nc \
      --output-dir data/2-out/energy \
-     --disruptions data/1-processed/energy/collaborator/disruptions.csv
+     --disruptions data/1-processed/energy/provided/disruptions.csv
    ```
 
    Omit `--disruptions` for a baseline-only run. Results and a `demand_summary.csv`
@@ -140,7 +140,7 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
 
 ### Reviewed inputs for `base`
 
-Place these under `data/1-processed/energy/collaborator/`:
+Place these under `data/1-processed/energy/provided/`:
 
 - `lines.csv` — `line_id`, `bus0`, `bus1`, `v_nom_kv`, `length_km`, `s_nom_mva`.
   Must come from CEB records: `PowerGrid.shp` geometry has no line endpoints or
@@ -153,7 +153,7 @@ Place these under `data/1-processed/energy/collaborator/`:
   column (split across substations by `service_weights.csv`) or one column per
   `bus_id`. Regular half-hourly, hourly or three-hourly spacing.
 
-The collaborator workbook only provides monthly peaks and annual sector totals,
+The provided workbook only provides monthly peaks and annual sector totals,
 so a dated `demand_profile.csv` must come from CEB or another documented source.
 
 ## Distribution network

@@ -1,4 +1,4 @@
-"""Convert collaborator source files into stable analysis-ready asset layers."""
+"""Convert provided source files into stable analysis-ready asset layers."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from shapely.ops import nearest_points
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 METRIC_CRS = "EPSG:32740"
 GEOGRAPHIC_CRS = "EPSG:4326"
-REQUIRED_COLLABORATOR_FILES = (
+REQUIRED_PROVIDED_FILES = (
     "power_demand/Power Demand.xlsx",
     "substation/Substation.shp",
     "substation/Substation.shx",
@@ -48,12 +48,12 @@ class PreparedAssets:
     annual_sector_demand: Path
 
 
-def validate_collaborator_inputs(input_dir: Path) -> None:
+def validate_provided_inputs(input_dir: Path) -> None:
     """Give a clear error when a required source file is missing."""
     input_dir = Path(input_dir)
     missing = [
         relative_path
-        for relative_path in REQUIRED_COLLABORATOR_FILES
+        for relative_path in REQUIRED_PROVIDED_FILES
         if not (input_dir / relative_path).is_file()
     ]
     if not missing:
@@ -61,11 +61,11 @@ def validate_collaborator_inputs(input_dir: Path) -> None:
 
     missing_list = "\n".join(f"  - {path}" for path in missing)
     message = (
-        f"Collaborator input data are incomplete at:\n  {input_dir}\n\n"
+        f"Provided input data are incomplete at:\n  {input_dir}\n\n"
         f"Missing files:\n{missing_list}\n\n"
         "Place the complete source folders under "
-        "data/0-incoming/energy/collaborator, or set MU_STAR_DATA_ROOT to a "
-        "data directory containing the same 0-incoming/energy/collaborator "
+        "data/0-incoming/energy/provided, or set MU_STAR_DATA_ROOT to a "
+        "data directory containing the same 0-incoming/energy/provided "
         "structure."
     )
     if "/data/incoming/" in input_dir.as_posix():
@@ -332,11 +332,11 @@ def snap_substations_to_routes(
     return snapped
 
 
-def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
+def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     """Prepare source shapefiles and the CEB workbook for modelling."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
-    validate_collaborator_inputs(input_dir)
+    validate_provided_inputs(input_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     substations = _read_gdf(input_dir / "substation" / "Substation.shp").reset_index(drop=True)
@@ -389,7 +389,7 @@ def prepare_collaborator_data(input_dir: Path, output_dir: Path) -> PreparedAsse
     generation_sites["fuel_energy_basis"] = pd.NA
     generation_sites["status"] = "needs_validation"
     generation_sites["bus_id"] = pd.NA
-    generation_sites["source"] = "collaborator_geometry"
+    generation_sites["source"] = "provided_geometry"
     generation_sites["lon"] = generation_sites.geometry.x
     generation_sites["lat"] = generation_sites.geometry.y
 

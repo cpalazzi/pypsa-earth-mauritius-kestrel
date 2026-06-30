@@ -78,13 +78,13 @@ Standalone run path:
 2. run `python -m mu_star_energy.cli prepare-assets`;
 3. review and complete `generators.csv`, `lines.csv`,
    `demand_profile.csv`, and `service_weights.csv` under
-   `data/1-processed/energy/collaborator`;
+   `data/1-processed/energy/provided`;
 4. build a PyPSA network with `build_operational_network(...)`;
 5. call `EnergyModel().simulate(network, disruptions)`.
 
 ## Module map
 
-- `intake.py`: validates collaborator source folders and writes cleaned
+- `intake.py`: validates provided source folders and writes cleaned
   substations, route geometry, generation layers, demand summaries and register
   templates.
 - `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
@@ -112,7 +112,7 @@ Standalone run path:
 
 The repository now contains two related but separate models:
 
-1. **Interruption model:** collaborator and CEB data currently describe
+1. **Interruption model:** provided and CEB data currently describe
    the power stations, substations, transmission lines and demand in Mauritius.
    This is the model intended for outage and damage analysis.
 2. **PyPSA-Earth comparison model:** open data are used to build and optimise a
@@ -171,10 +171,10 @@ tracked. `MU_STAR_DATA_ROOT` can point these stages at the shared project data
 location, including a locally synchronised OneDrive folder. The numeric
 prefixes are ordering aids and do not change what each folder is for.
 
-Current raw collaborator layout:
+Current raw provided layout:
 
 ```text
-data/0-incoming/energy/collaborator/
+data/0-incoming/energy/provided/
   power_demand/
     Power Demand.xlsx
     Daily Profile.jpg
@@ -251,7 +251,7 @@ named sensitivity sets for assumed feeder capacities and impedances.
 
 Primary interruption-model notebooks:
 
-1. `00-data-review/00_data_review.ipynb` reads the collaborator files, lists
+1. `00-data-review/00_data_review.ipynb` reads the provided files, lists
    the records found, shows substation snap distances and identifies missing
    power-station information. It does not build a model.
 2. `01-build-network/00_build_network.ipynb` displays the routes and snapped
@@ -368,7 +368,7 @@ Current local profile limitations:
 
 PyPSA-Earth can also help check OSM transmission mapping and open power-station
 records. Differences should be reported for review; they should not
-automatically overwrite collaborator or CEB records.
+automatically overwrite provided or CEB records.
 
 ## Development tasks
 
@@ -418,7 +418,7 @@ normal demand without using the emergency unmet-demand option.
 Suggested output:
 
 ```text
-data/1-processed/energy/collaborator/
+data/1-processed/energy/provided/
   demand_profile.csv
   demand_profile_metadata.json
 ```
@@ -443,7 +443,7 @@ data/1-processed/energy/collaborator/
 Suggested outputs:
 
 ```text
-data/1-processed/energy/collaborator/
+data/1-processed/energy/provided/
   generator_availability.csv
   generator_profile_assignments.csv
   generator_profile_metadata.json

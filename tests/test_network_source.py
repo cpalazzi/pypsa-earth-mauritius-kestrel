@@ -45,7 +45,7 @@ def _write_base_inputs(input_dir):
 
 
 def test_build_base_network_exports_network_files(tmp_path):
-    input_dir = tmp_path / "processed" / "energy" / "collaborator"
+    input_dir = tmp_path / "processed" / "energy" / "provided"
     output_dir = tmp_path / "processed" / "energy" / "networks"
     _write_base_inputs(input_dir)
 
@@ -74,7 +74,7 @@ def test_build_base_network_requires_reviewed_inputs(tmp_path):
 
 
 def test_build_inferred_network_exports_network_and_graph_tables(tmp_path):
-    input_dir = tmp_path / "processed" / "energy" / "collaborator"
+    input_dir = tmp_path / "processed" / "energy" / "provided"
     output_dir = tmp_path / "processed" / "energy" / "networks"
     input_dir.mkdir(parents=True)
     gpd.GeoDataFrame(

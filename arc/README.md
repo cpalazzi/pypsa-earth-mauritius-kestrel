@@ -2,7 +2,7 @@
 
 Scripts for running the Mauritius PyPSA-Earth workflow on Oxford ARC.
 These are technical instructions for the person running large jobs on the
-university computing cluster; collaborators reviewing model assumptions do not
+university computing cluster; project reviewers checking model assumptions do not
 need to use them.
 
 ## Scripts

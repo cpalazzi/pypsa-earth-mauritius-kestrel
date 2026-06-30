@@ -13,7 +13,7 @@ from mu_star_energy.distribution_network import (
     build_inferred_distribution_graph,
     write_inferred_distribution_tables,
 )
-from mu_star_energy.intake import prepare_collaborator_data
+from mu_star_energy.intake import prepare_provided_data
 from mu_star_energy.network_source import build_network
 from mu_star_energy.osm import ISLANDS
 from mu_star_energy.paths import incoming_energy_dir, output_energy_dir, processed_energy_dir
@@ -21,7 +21,7 @@ from mu_star_energy.runner import run_interruption_analysis
 
 
 def _prepare_assets(args: argparse.Namespace) -> None:
-    outputs = prepare_collaborator_data(Path(args.input_dir), Path(args.output_dir))
+    outputs = prepare_provided_data(Path(args.input_dir), Path(args.output_dir))
     print(json.dumps({key: str(value) for key, value in outputs.__dict__.items()}, indent=2))
 
 
@@ -111,10 +111,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     prepare = subparsers.add_parser("prepare-assets")
     prepare.add_argument(
-        "--input-dir", type=Path, default=incoming_energy_dir() / "collaborator"
+        "--input-dir", type=Path, default=incoming_energy_dir() / "provided"
     )
     prepare.add_argument(
-        "--output-dir", type=Path, default=processed_energy_dir() / "collaborator"
+        "--output-dir", type=Path, default=processed_energy_dir() / "provided"
     )
     prepare.set_defaults(func=_prepare_assets)
 
@@ -129,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--input-dir",
         type=Path,
-        default=processed_energy_dir() / "collaborator",
+        default=processed_energy_dir() / "provided",
         help="Folder containing reviewed/intermediate network inputs.",
     )
     build.add_argument(
@@ -164,7 +164,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--input-dir",
         type=Path,
-        default=processed_energy_dir() / "collaborator",
+        default=processed_energy_dir() / "provided",
         help="Folder containing reviewed buses, lines, generators, demand and service weights.",
     )
     run.add_argument(
@@ -218,7 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     inferred.add_argument(
         "--substations",
         type=Path,
-        default=processed_energy_dir() / "collaborator" / "snapped_substations.parquet",
+        default=processed_energy_dir() / "provided" / "snapped_substations.parquet",
     )
     inferred.add_argument(
         "--gridfinder-lines",

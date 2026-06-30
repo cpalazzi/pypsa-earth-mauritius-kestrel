@@ -6,7 +6,7 @@ This is the single data tree for the Mauritius energy model:
 0-incoming  ->  1-processed  ->  2-out
 ```
 
-- `0-incoming`: source files from collaborators or downloaded from
+- `0-incoming`: source files from project partners or downloaded from
   OSM, GridFinder and other providers. Place or sync source data here and leave
   it unchanged.
 - `1-processed`: cleaned tables of assets, network connections and demand.

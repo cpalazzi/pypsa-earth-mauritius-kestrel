@@ -7,7 +7,7 @@ Expected energy layout:
 
 ```text
 data/0-incoming/energy/
-  collaborator/
+  provided/
     power_demand/
     power_transmission/
     substation/
@@ -18,7 +18,7 @@ data/0-incoming/energy/
     distribution_lines.parquet
 ```
 
-The collaborator folder currently comes from the project OneDrive export. Keep
+The provided folder currently comes from the project OneDrive export. Keep
 source filenames unchanged. Record any judgement or correction in a new
 cleaned table, not in the source file.
 

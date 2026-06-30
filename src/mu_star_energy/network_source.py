@@ -543,7 +543,7 @@ def build_network(
             raise ValueError("island can only be used with source='inferred'")
         if island not in osm.ISLANDS:
             raise ValueError(f"Unknown island {island!r}; choose from {sorted(osm.ISLANDS)}")
-    input_dir = Path(input_dir or processed_energy_dir() / "collaborator")
+    input_dir = Path(input_dir or processed_energy_dir() / "provided")
     output_dir = Path(output_dir or processed_energy_dir() / "networks")
     output_stem = f"{source}-{island}" if island is not None else source
     network_path = output_dir / f"{output_stem}.nc"

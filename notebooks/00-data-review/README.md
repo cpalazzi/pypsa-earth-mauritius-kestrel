@@ -1,14 +1,14 @@
 # Data review notebooks
 
-Purpose: inspect collaborator source files, write cleaned review tables and
+Purpose: inspect provided source files, write cleaned review tables and
 identify missing engineering inputs. This stage does not build a PyPSA network.
 
 Inputs:
 
-- `data/0-incoming/energy/collaborator/power_demand/`
-- `data/0-incoming/energy/collaborator/substation/`
-- `data/0-incoming/energy/collaborator/power_transmission/`
-- `data/0-incoming/energy/collaborator/generation_source/`
+- `data/0-incoming/energy/provided/power_demand/`
+- `data/0-incoming/energy/provided/substation/`
+- `data/0-incoming/energy/provided/power_transmission/`
+- `data/0-incoming/energy/provided/generation_source/`
 
 Outputs:
 

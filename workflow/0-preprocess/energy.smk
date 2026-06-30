@@ -1,4 +1,4 @@
-"""Prepare collaborator asset tables without deriving network connections."""
+"""Prepare provided asset tables without deriving network connections."""
 
 rule prepare_energy_assets:
     input:

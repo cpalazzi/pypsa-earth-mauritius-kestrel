@@ -7,18 +7,18 @@ from mu_star_energy.intake import (
     _extract_route_capacity_mw,
     _extract_route_voltage_kv,
     snap_substations_to_routes,
-    validate_collaborator_inputs,
+    validate_provided_inputs,
 )
 
 
-def test_collaborator_input_check_lists_missing_files(tmp_path):
+def test_provided_input_check_lists_missing_files(tmp_path):
     with pytest.raises(FileNotFoundError) as error:
-        validate_collaborator_inputs(tmp_path)
+        validate_provided_inputs(tmp_path)
 
     message = str(error.value)
     assert str(tmp_path) in message
     assert "power_demand/Power Demand.xlsx" in message
-    assert "data/0-incoming/energy/collaborator" in message
+    assert "data/0-incoming/energy/provided" in message
 
 
 def test_snap_substations_to_nearest_route_and_record_distance():

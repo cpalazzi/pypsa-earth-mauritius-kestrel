@@ -4,8 +4,8 @@ import os
 configfile: "config/energy.yaml"
 
 DATA_ROOT = os.environ.get("MU_STAR_DATA_ROOT", config.get("data_root", "data"))
-INCOMING_ENERGY = f"{DATA_ROOT}/0-incoming/energy/collaborator"
-PROCESSED_ENERGY = f"{DATA_ROOT}/1-processed/energy/collaborator"
+INCOMING_ENERGY = f"{DATA_ROOT}/0-incoming/energy/provided"
+PROCESSED_ENERGY = f"{DATA_ROOT}/1-processed/energy/provided"
 OUTPUT_ENERGY = f"{DATA_ROOT}/2-out/energy"
 NETWORKS_ENERGY = f"{DATA_ROOT}/1-processed/energy/networks"
 ENERGY_OPERATIONS = config.get("energy", {}).get("operations", {})

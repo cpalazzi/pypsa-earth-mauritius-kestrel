@@ -73,7 +73,7 @@ def test_read_time_series_csv_uses_first_column_as_timestamp(tmp_path):
 
 
 def test_run_interruption_analysis_writes_baseline_and_outage_outputs(tmp_path):
-    input_dir = tmp_path / "processed" / "energy" / "collaborator"
+    input_dir = tmp_path / "processed" / "energy" / "provided"
     output_dir = tmp_path / "out" / "energy"
     _write_reviewed_inputs(input_dir)
 
@@ -104,7 +104,7 @@ def test_run_interruption_analysis_writes_baseline_and_outage_outputs(tmp_path):
 
 
 def test_run_interruption_analysis_can_load_saved_network(tmp_path):
-    input_dir = tmp_path / "processed" / "energy" / "collaborator"
+    input_dir = tmp_path / "processed" / "energy" / "provided"
     network_dir = tmp_path / "processed" / "energy" / "networks"
     output_dir = tmp_path / "out" / "energy"
     _write_reviewed_inputs(input_dir)

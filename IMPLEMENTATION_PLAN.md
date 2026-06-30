@@ -158,31 +158,26 @@ edges). St Brandon yields an empty/near-empty graph without error.
 
 ## Part C — naming cleanup (own commit)
 
-1. **`collaborator` → `provided`.** The given/official source-data folder is
-   named for *who* provided it; rename it to describe *what* it is. (`provided`,
-   not `supplied`, to avoid clashing with energy "supply".) Rename across:
+1. **Provided source-data naming.** The given/official source-data folder should
+   describe *what* it is. (`provided`, not `supplied`, to avoid clashing with
+   energy "supply".) Rename across:
    - data dirs (git-ignored — move on disk so the pipeline keeps working):
-     `data/0-incoming/energy/collaborator/` and
-     `data/1-processed/energy/collaborator/` → `.../provided/`;
-   - code: `intake.prepare_collaborator_data` → `prepare_provided_data`,
-     `validate_collaborator_inputs` → `validate_provided_inputs`,
-     `REQUIRED_COLLABORATOR_FILES` → `REQUIRED_PROVIDED_FILES`, the default paths
-     in `network_source.py`/`runner.py`/`cli.py`
-     (`processed_energy_dir()/"collaborator"` → `/"provided"`), and notebook
-     `COLLABORATOR_DIR` → `PROVIDED_DIR`;
-   - docs/notebooks/tests: all remaining `collaborator` references.
+     the legacy source-data folders under `data/0-incoming/energy/` and
+     `data/1-processed/energy/` become `provided/`;
+   - code: use `prepare_provided_data`, `validate_provided_inputs`,
+     `REQUIRED_PROVIDED_FILES`, and default paths ending in `/provided`;
+   - docs/notebooks/tests: remove remaining legacy source-name references.
    Keep the `prepare-assets` CLI name (source-agnostic). Run `pytest` after.
-   Note: the `collaborator` paths used elsewhere in this plan become `provided`.
 
 2. **"inferred" wording.** Describe `inferred` as "derived from OSM roads (the
-   GridFinder approach)" — never "structural scenario". Already applied to the
-   current docs/notebooks; keep this phrasing in any new text.
+   GridFinder approach)". Already applied to the current docs/notebooks; keep
+   this phrasing in any new text.
 
 ## Commits (three chunks)
 
 1. `Decouple demand from network build (topology build + attach_demand)` — Part A.
 2. `Build OSM-road inferred network per island` — Part B.
-3. `Rename collaborator data to provided` — Part C.
+3. `Rename source data to provided` — Part C.
 
 Run `.venv/bin/pytest` before each commit; strip notebook outputs; push after each.
 

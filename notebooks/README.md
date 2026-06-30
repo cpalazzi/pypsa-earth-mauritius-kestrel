@@ -5,7 +5,7 @@ purpose, not just by data source.
 
 ## Fixed-capacity interruption workflow
 
-Run these folders in order after placing collaborator data under
+Run these folders in order after placing provided data under
 `data/0-incoming` or an equivalent `MU_STAR_DATA_ROOT`:
 
 1. `00-data-review/` cleans and reviews source data. It does not build a model.
