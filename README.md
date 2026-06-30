@@ -9,9 +9,8 @@ This is an operational model of a fixed set of assets.
 
 ## Two models in this repo
 
-Two separate models sit side by side. The split is the modelling approach —
-the mu-star energy model vs the PyPSA-Earth reference — not the `base` and
-`inferred` network sources inside the interruption model.
+Two separate models sit side by side:
+the development workflow for the mu-star energy component, and PyPSA-Earth for reference. 
 
 **Interruption model (primary)** — the mu-star `energy` component: code in
 `src/mu_star_energy/`, notebooks in
