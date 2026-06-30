@@ -12,7 +12,7 @@ import pypsa
 
 from mu_star_energy.damage import damage_to_disruptions
 from mu_star_energy.model import EnergyModel, SimulationResult
-from mu_star_energy.network import build_operational_network
+from mu_star_energy.network import attach_demand, build_operational_network
 
 
 @dataclass(frozen=True)
@@ -172,12 +172,29 @@ def run_interruption_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if network_path is not None:
-        if generator_availability_path is not None:
-            raise ValueError(
-                "Generator availability is baked into saved network files; "
-                "rebuild the network instead of passing generator_availability."
+        demand_path = input_dir / "demand_profile.csv"
+        if not demand_path.exists():
+            raise FileNotFoundError(
+                f"{demand_path} is missing. Saved networks are topology-only; "
+                "attach demand from demand_profile.csv before simulation."
             )
-        network = pypsa.Network(network_path)
+        demand = read_time_series_csv(demand_path, label="demand_profile")
+        service_weights = pd.read_csv(input_dir / "service_weights.csv")
+        generator_availability = (
+            read_time_series_csv(
+                generator_availability_path,
+                label="generator_availability",
+            )
+            if generator_availability_path
+            else None
+        )
+        network = attach_demand(
+            pypsa.Network(network_path),
+            demand,
+            service_weights,
+            generator_availability=generator_availability,
+            value_of_lost_load=value_of_lost_load,
+        )
     else:
         buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
         lines = pd.read_csv(input_dir / "lines.csv")

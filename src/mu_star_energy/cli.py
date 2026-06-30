@@ -55,15 +55,12 @@ def _build_network(args: argparse.Namespace) -> None:
         args.source,
         input_dir=args.input_dir,
         output_dir=args.output_dir,
-        generator_availability_path=args.generator_availability,
         gridfinder_lines_path=args.gridfinder_lines,
         osm_distribution_lines_path=args.osm_distribution_lines,
         allow_pypsa_earth_osm_fallback=not args.no_pypsa_earth_osm_fallback,
-        allow_provisional_demand=args.allow_provisional_demand,
         max_anchor_distance_m=args.max_anchor_distance_m,
         inferred_voltage_kv=args.inferred_voltage_kv,
         inferred_capacity_mva=args.inferred_capacity_mva,
-        value_of_lost_load=args.value_of_lost_load,
     )
     print(
         json.dumps(
@@ -134,12 +131,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Folder where saved network files are written.",
     )
     build.add_argument(
-        "--generator-availability",
-        type=Path,
-        default=None,
-        help="Optional timestamped CSV with one availability-fraction column per generator_id.",
-    )
-    build.add_argument(
         "--gridfinder-lines",
         type=Path,
         default=None,
@@ -156,18 +147,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not fall back to the local PyPSA-Earth OSM line extraction.",
     )
-    build.add_argument(
-        "--allow-provisional-demand",
-        action="store_true",
-        help=(
-            "For source=inferred only, use monthly_peak_demand_mw.csv as a "
-            "one-snapshot demand profile when demand_profile.csv is absent."
-        ),
-    )
     build.add_argument("--max-anchor-distance-m", type=float, default=500)
     build.add_argument("--inferred-voltage-kv", type=float, default=11)
     build.add_argument("--inferred-capacity-mva", type=float, default=5)
-    build.add_argument("--value-of-lost-load", type=float, default=10_000)
     build.set_defaults(func=_build_network)
 
     run = subparsers.add_parser("run-interruptions")

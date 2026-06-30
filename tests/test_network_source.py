@@ -2,6 +2,7 @@ import json
 
 import geopandas as gpd
 import pandas as pd
+import pypsa
 import pytest
 from shapely.geometry import LineString, Point
 
@@ -39,12 +40,6 @@ def _write_base_inputs(input_dir):
         }
     ).to_csv(input_dir / "generators.csv", index=False)
     pd.DataFrame(
-        {
-            "timestamp": pd.date_range("2025-01-01", periods=2, freq="h"),
-            "demand_mw": [40.0, 40.0],
-        }
-    ).to_csv(input_dir / "demand_profile.csv", index=False)
-    pd.DataFrame(
         {"bus_id": ["A", "B"], "service_weight": [0.0, 1.0]}
     ).to_csv(input_dir / "service_weights.csv", index=False)
 
@@ -62,7 +57,11 @@ def test_build_base_network_exports_network_files(tmp_path):
     assert metadata["buses"] == 2
     assert metadata["lines"] == 1
     assert metadata["generators"] == 1
+    assert metadata["has_demand"] is False
+    assert metadata["loads"] == 0
     assert metadata["inferred"] is False
+    network = pypsa.Network(outputs.network)
+    assert network.loads.empty
 
 
 def test_build_base_network_requires_reviewed_inputs(tmp_path):
@@ -86,9 +85,6 @@ def test_build_inferred_network_exports_network_and_graph_tables(tmp_path):
         input_dir / "service_weights.csv",
         index=False,
     )
-    pd.DataFrame(
-        {"year": [2025], "Jan": [50.0], "Feb": [60.0]},
-    ).to_csv(input_dir / "monthly_peak_demand_mw.csv", index=False)
     line_path = tmp_path / "gridfinder.geojson"
     gpd.GeoDataFrame(
         {"geometry": [LineString([(57.5001, -20.2), (57.501, -20.2)])]},
@@ -102,7 +98,6 @@ def test_build_inferred_network_exports_network_and_graph_tables(tmp_path):
         gridfinder_lines_path=line_path,
         osm_distribution_lines_path=None,
         allow_pypsa_earth_osm_fallback=False,
-        allow_provisional_demand=True,
         max_anchor_distance_m=100,
     )
 
@@ -112,4 +107,6 @@ def test_build_inferred_network_exports_network_and_graph_tables(tmp_path):
     assert outputs.inferred_edges.is_file()
     assert metadata["source"] == "inferred"
     assert metadata["inferred"] is True
-    assert metadata["loads"] >= 1
+    assert metadata["has_demand"] is False
+    assert metadata["loads"] == 0
+    assert (outputs.inferred_nodes.parent / "service_weights.csv").is_file()

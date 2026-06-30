@@ -134,22 +134,24 @@ Current interruption-model preparation produces:
   distribution file has yet been added.
 
 The Python network builder and CLI can use demand that changes over time.
-`build-network` writes the saved PyPSA network; `run-interruptions` can load
-that saved network with `--network` / `--network-source`, run a baseline case and run
-an outage case from a disruption table. Existing wind and solar generators can
-receive an optional availability profile during network build, but the
-workflow does not yet create those profiles automatically from PyPSA-Earth
-weather files. Without a provided availability table, every non-damaged
-generator is available up to its full installed capacity in every time step.
+`build-network` writes the saved topology-only PyPSA network; `run-interruptions`
+loads that saved network with `--network` / `--network-source`, attaches demand,
+runs a baseline case and runs an outage case from a disruption table. Existing
+wind and solar generators can receive an optional availability profile during
+the interruption run, but the workflow does not yet create those profiles
+automatically from PyPSA-Earth weather files. Without a provided availability
+table, every non-damaged generator is available up to its full installed
+capacity in every time step.
 Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
 factor for validation.
-`build-network inferred --allow-provisional-demand` currently writes an
-OSM-derived inferred network at
+`build-network inferred` currently writes a topology-only inferred network
+derived from OSM roads (the GridFinder approach) at
 `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
 line extraction fallback when no cached GridFinder/OSM distribution file is
-present. The reviewed `base` network is still blocked until `lines.csv`,
-`generators.csv` and `demand_profile.csv` are provided.
+present. The reviewed `base` topology network is still blocked until
+`lines.csv` and `generators.csv` are provided; interruption runs also require
+`demand_profile.csv`.
 
 ## Data stages
 

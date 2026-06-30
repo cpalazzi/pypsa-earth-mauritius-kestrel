@@ -119,9 +119,10 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
    .venv/bin/python -m mu_star_energy.cli build-network base
    ```
 
-   `base` needs the reviewed inputs below and fails rather than guessing missing
-   values. `build-network inferred --allow-provisional-demand` writes a
-   network derived from OSM/GridFinder routes, for testing before reviewed data exists.
+   `base` needs the reviewed topology inputs below and fails rather than
+   guessing missing values. `build-network inferred` writes a topology-only
+   network derived from OSM roads (the GridFinder approach), for testing before
+   reviewed data exists.
 
 5. **Run interruptions:**
 
@@ -145,10 +146,11 @@ Place these under `data/1-processed/energy/collaborator/`:
   ratings, so connections are never inferred from route proximity.
 - `generators.csv` — `generator_id`, `bus_id`, `carrier`, `capacity_mw`,
   `marginal_cost` (start from the generated register template).
-- `demand_profile.csv` — a timestamp column plus either one `demand_mw` column
-  (split across substations by `service_weights.csv`) or one column per `bus_id`.
-  Regular half-hourly, hourly or three-hourly spacing.
 - `service_weights.csv` — each substation's share of demand (shares sum to one).
+- `demand_profile.csv` — required when running interruptions, not when building
+  the topology network. Use a timestamp column plus either one `demand_mw`
+  column (split across substations by `service_weights.csv`) or one column per
+  `bus_id`. Regular half-hourly, hourly or three-hourly spacing.
 
 The collaborator workbook only provides monthly peaks and annual sector totals,
 so a dated `demand_profile.csv` must come from CEB or another documented source.

@@ -8,8 +8,7 @@ the demand profile.
 Inputs:
 
 - cleaned review tables from `00-data-review`;
-- reviewed `lines.csv`, `generators.csv` and `demand_profile.csv` for
-  `source = "base"`;
+- reviewed `lines.csv` and `generators.csv` for `source = "base"`;
 - optional OSM/GridFinder line files, or the PyPSA-Earth OSM fallback, for
   `source = "inferred"`.
 
@@ -21,5 +20,5 @@ Outputs:
 - matching metadata JSON and inferred graph review tables.
 
 Settings users may change: `NETWORK_SOURCE`, anchor distance and inferred
-voltage/capacity assumptions. Demand handling (including the provisional
-fallback for `inferred`) lives in `01_demand_settings.ipynb` (draft).
+voltage/capacity assumptions. Demand handling lives in
+`01_demand_settings.ipynb` and is attached later during interruption analysis.

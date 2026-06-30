@@ -6,6 +6,8 @@ disruptions and write interruption metrics.
 Inputs:
 
 - `data/1-processed/energy/networks/<source>.nc`;
+- `demand_profile.csv` and `service_weights.csv`, attached to the saved
+  topology network before simulation;
 - optional disruption tables with `component`, `asset_id` and either
   `available_fraction` or a damage-fraction column.
 

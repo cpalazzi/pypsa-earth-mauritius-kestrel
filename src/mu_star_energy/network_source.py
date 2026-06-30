@@ -18,15 +18,13 @@ from mu_star_energy.distribution_network import (
     build_inferred_distribution_graph,
     write_inferred_distribution_tables,
 )
-from mu_star_energy.network import assert_fixed_capacity, build_operational_network
+from mu_star_energy.network import assert_fixed_capacity, build_topology_network
 from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
-from mu_star_energy.runner import read_time_series_csv
 
 BASE_REQUIRED_FILES = (
     "snapped_substations.parquet",
     "lines.csv",
     "generators.csv",
-    "demand_profile.csv",
     "service_weights.csv",
 )
 
@@ -57,7 +55,6 @@ def _load_reviewed_inputs(input_dir: Path) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
     pd.DataFrame,
-    pd.DataFrame,
 ]:
     missing = _missing_files(input_dir, BASE_REQUIRED_FILES)
     if missing:
@@ -70,9 +67,8 @@ def _load_reviewed_inputs(input_dir: Path) -> tuple[
     buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
     lines = pd.read_csv(input_dir / "lines.csv")
     generators = pd.read_csv(input_dir / "generators.csv")
-    demand = read_time_series_csv(input_dir / "demand_profile.csv", label="demand_profile")
     service_weights = pd.read_csv(input_dir / "service_weights.csv")
-    return buses, lines, generators, demand, service_weights
+    return buses, lines, generators, service_weights
 
 
 def _write_network(path: Path, network: pypsa.Network) -> Path:
@@ -93,24 +89,9 @@ def _build_base_network(
     input_dir: Path,
     network_path: Path,
     metadata_path: Path,
-    generator_availability_path: Path | None,
-    value_of_lost_load: float,
 ) -> NetworkBuildOutputs:
-    buses, lines, generators, demand, service_weights = _load_reviewed_inputs(input_dir)
-    generator_availability = (
-        read_time_series_csv(generator_availability_path, label="generator_availability")
-        if generator_availability_path
-        else None
-    )
-    network = build_operational_network(
-        buses,
-        lines,
-        generators,
-        demand,
-        service_weights,
-        generator_availability=generator_availability,
-        value_of_lost_load=value_of_lost_load,
-    )
+    buses, lines, generators, _service_weights = _load_reviewed_inputs(input_dir)
+    network = build_topology_network(buses, lines, generators)
     _write_network(network_path, network)
     _write_metadata(
         metadata_path,
@@ -118,25 +99,24 @@ def _build_base_network(
             "source": "base",
             "input_dir": str(input_dir),
             "network": str(network_path),
-            "snapshots": len(network.snapshots),
+            "has_demand": False,
+            "snapshots": 0,
             "buses": len(network.buses),
             "lines": len(network.lines),
-            "generators": int(
-                network.generators.carrier.ne("load_shedding").sum()
-            ),
-            "loads": len(network.loads),
+            "generators": len(network.generators),
+            "loads": 0,
             "inferred": False,
         },
     )
     return NetworkBuildOutputs(network=network_path, metadata=metadata_path)
 
 
-def _latest_peak_demand_profile(input_dir: Path) -> pd.DataFrame:
+def provisional_demand_profile(input_dir: Path) -> pd.DataFrame:
     path = input_dir / "monthly_peak_demand_mw.csv"
     if not path.exists():
         raise FileNotFoundError(
-            "demand_profile.csv is missing. Pass --allow-provisional-demand to "
-            "use monthly_peak_demand_mw.csv, or supply a reviewed demand profile."
+            "monthly_peak_demand_mw.csv is missing; supply a reviewed demand "
+            "profile or place the monthly peak table in this input directory."
         )
     peaks = pd.read_csv(path)
     value_columns = [column for column in peaks.columns if column != "year"]
@@ -158,18 +138,6 @@ def _latest_peak_demand_profile(input_dir: Path) -> pd.DataFrame:
     row = long.sort_values(["year", "month_number"]).iloc[-1]
     timestamp = pd.Timestamp(int(row["year"]), int(row["month_number"]), 1)
     return pd.DataFrame({"demand_mw": [float(row["demand_mw"])]}, index=[timestamp])
-
-
-def _load_demand_profile(input_dir: Path, *, allow_provisional_demand: bool) -> pd.DataFrame:
-    path = input_dir / "demand_profile.csv"
-    if path.exists():
-        return read_time_series_csv(path, label="demand_profile")
-    if allow_provisional_demand:
-        return _latest_peak_demand_profile(input_dir)
-    raise FileNotFoundError(
-        f"{path} is missing. Supply a reviewed demand profile, or pass "
-        "--allow-provisional-demand for a one-snapshot network."
-    )
 
 
 def _empty_generators() -> pd.DataFrame:
@@ -289,11 +257,9 @@ def _build_inferred_network(
     gridfinder_lines_path: Path | None,
     osm_distribution_lines_path: Path | None,
     allow_pypsa_earth_osm_fallback: bool,
-    allow_provisional_demand: bool,
     max_anchor_distance_m: float,
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
-    value_of_lost_load: float,
 ) -> NetworkBuildOutputs:
     substations_path = input_dir / "snapped_substations.parquet"
     service_weights_path = input_dir / "service_weights.csv"
@@ -334,18 +300,12 @@ def _build_inferred_network(
         default_capacity_mva=inferred_capacity_mva,
     )
     generators = _load_generators(input_dir, inferred_bus_ids=True)
-    demand = _load_demand_profile(input_dir, allow_provisional_demand=allow_provisional_demand)
     reviewed_weights = pd.read_csv(service_weights_path)
     service_weights = _inferred_service_weights(graph, reviewed_weights, buses)
+    service_weights_path_out = output_dir / "inferred_distribution" / "service_weights.csv"
+    service_weights.to_csv(service_weights_path_out, index=False)
 
-    network = build_operational_network(
-        buses,
-        lines,
-        generators,
-        demand,
-        service_weights,
-        value_of_lost_load=value_of_lost_load,
-    )
+    network = build_topology_network(buses, lines, generators)
     _write_network(network_path, network)
     _write_metadata(
         metadata_path,
@@ -353,13 +313,12 @@ def _build_inferred_network(
             "source": "inferred",
             "input_dir": str(input_dir),
             "network": str(network_path),
-            "snapshots": len(network.snapshots),
+            "has_demand": False,
+            "snapshots": 0,
             "buses": len(network.buses),
             "lines": len(network.lines),
-            "generators": int(
-                network.generators.carrier.ne("load_shedding").sum()
-            ),
-            "loads": len(network.loads),
+            "generators": len(network.generators),
+            "loads": 0,
             "inferred": True,
             "stage": "connectivity_only",
             "gridfinder_lines_path": str(gridfinder_lines_path)
@@ -369,7 +328,7 @@ def _build_inferred_network(
             if osm_distribution_lines_path
             else None,
             "pypsa_earth_osm_fallback": str(fallback_path) if fallback_path else None,
-            "allow_provisional_demand": allow_provisional_demand,
+            "service_weights": str(service_weights_path_out),
             "inferred_voltage_kv": inferred_voltage_kv,
             "inferred_capacity_mva": inferred_capacity_mva,
             "max_anchor_distance_m": max_anchor_distance_m,
@@ -389,15 +348,12 @@ def build_network(
     *,
     input_dir: Path | None = None,
     output_dir: Path | None = None,
-    generator_availability_path: Path | None = None,
     gridfinder_lines_path: Path | None = None,
     osm_distribution_lines_path: Path | None = None,
     allow_pypsa_earth_osm_fallback: bool = True,
-    allow_provisional_demand: bool = False,
     max_anchor_distance_m: float = 500,
     inferred_voltage_kv: float = 11,
     inferred_capacity_mva: float = 5,
-    value_of_lost_load: float = 10_000,
 ) -> NetworkBuildOutputs:
     """Build and save a named network-source artifact."""
     source = source.lower()
@@ -411,8 +367,6 @@ def build_network(
             input_dir=input_dir,
             network_path=network_path,
             metadata_path=metadata_path,
-            generator_availability_path=generator_availability_path,
-            value_of_lost_load=value_of_lost_load,
         )
     if source == "inferred":
         return _build_inferred_network(
@@ -425,10 +379,8 @@ def build_network(
             osm_distribution_lines_path=osm_distribution_lines_path
             or incoming_energy_dir() / "osm" / "distribution_lines.parquet",
             allow_pypsa_earth_osm_fallback=allow_pypsa_earth_osm_fallback,
-            allow_provisional_demand=allow_provisional_demand,
             max_anchor_distance_m=max_anchor_distance_m,
             inferred_voltage_kv=inferred_voltage_kv,
             inferred_capacity_mva=inferred_capacity_mva,
-            value_of_lost_load=value_of_lost_load,
         )
     raise ValueError("source must be 'base' or 'inferred'")
