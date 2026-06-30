@@ -158,22 +158,21 @@ edges). St Brandon yields an empty/near-empty graph without error.
 
 ## Part C — naming cleanup (own commit)
 
-1. **`collaborator` → `supplied`.** The given/official source-data folder is
-   named for *who* provided it; rename it to describe *what* it is. (Chosen
-   term: `supplied`; `given`/`provided` are equally fine if preferred — pick one
-   and use it everywhere.) Rename across:
+1. **`collaborator` → `provided`.** The given/official source-data folder is
+   named for *who* provided it; rename it to describe *what* it is. (`provided`,
+   not `supplied`, to avoid clashing with energy "supply".) Rename across:
    - data dirs (git-ignored — move on disk so the pipeline keeps working):
      `data/0-incoming/energy/collaborator/` and
-     `data/1-processed/energy/collaborator/` → `.../supplied/`;
-   - code: `intake.prepare_collaborator_data` → `prepare_supplied_data`,
-     `validate_collaborator_inputs` → `validate_supplied_inputs`,
-     `REQUIRED_COLLABORATOR_FILES` → `REQUIRED_SUPPLIED_FILES`, the default paths
+     `data/1-processed/energy/collaborator/` → `.../provided/`;
+   - code: `intake.prepare_collaborator_data` → `prepare_provided_data`,
+     `validate_collaborator_inputs` → `validate_provided_inputs`,
+     `REQUIRED_COLLABORATOR_FILES` → `REQUIRED_PROVIDED_FILES`, the default paths
      in `network_source.py`/`runner.py`/`cli.py`
-     (`processed_energy_dir()/"collaborator"` → `/"supplied"`), and notebook
-     `COLLABORATOR_DIR` → `SUPPLIED_DIR`;
+     (`processed_energy_dir()/"collaborator"` → `/"provided"`), and notebook
+     `COLLABORATOR_DIR` → `PROVIDED_DIR`;
    - docs/notebooks/tests: all remaining `collaborator` references.
    Keep the `prepare-assets` CLI name (source-agnostic). Run `pytest` after.
-   Note: the `collaborator` paths used elsewhere in this plan become `supplied`.
+   Note: the `collaborator` paths used elsewhere in this plan become `provided`.
 
 2. **"inferred" wording.** Describe `inferred` as "derived from OSM roads (the
    GridFinder approach)" — never "structural scenario". Already applied to the
@@ -183,7 +182,7 @@ edges). St Brandon yields an empty/near-empty graph without error.
 
 1. `Decouple demand from network build (topology build + attach_demand)` — Part A.
 2. `Build OSM-road inferred network per island` — Part B.
-3. `Rename collaborator data to supplied` — Part C.
+3. `Rename collaborator data to provided` — Part C.
 
 Run `.venv/bin/pytest` before each commit; strip notebook outputs; push after each.
 

@@ -19,7 +19,7 @@ kept separate from the reviewed base network.
 
 For delivery into `nismod/mu-star`, this notebook sequence prepares the inputs
 for the `energy` component model. The public call remains
-`EnergyModel().simulate(network, disruptions)`, with disruptions supplied as
+`EnergyModel().simulate(network, disruptions)`, with disruptions provided as
 `component`, `asset_id`, and `available_fraction`.
 
 ## `pypsa-earth-analysis/`

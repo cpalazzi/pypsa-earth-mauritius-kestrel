@@ -62,7 +62,7 @@ Column meanings:
   separate buses connected by a transformer.
 
 The model does not store generator capacity on an LHV fuel-input basis.
-If a fuel price is supplied per thermal MWh on an LHV basis, convert it to
+If a fuel price is provided per thermal MWh on an LHV basis, convert it to
 electrical marginal cost using the documented generator efficiency. PyPSA
 `Link.p_nom`, used for explicit conversion technologies, is instead input-side
 power at `bus0`. PyPSA does not select LHV or HHV automatically, so
@@ -82,17 +82,17 @@ The model-building Python function and `run-interruptions` CLI accept these
 time-varying demand values. Regular half-hourly, hourly and three-hourly
 profiles are supported; the model sets the time-step duration from the
 timestamp spacing. The same timestamp convention is used by
-`generator_availability.csv` when supplied.
+`generator_availability.csv` when provided.
 
 Copy `generation_register_template.csv` to `generators.csv`, then
 review and complete it rather than editing generated Parquet outputs by hand.
 Keep the same generator IDs. Include the source and a short note for any value
 that you add or correct manually.
 
-`transmission_routes.parquet` preserves the supplied vector line geometry for
+`transmission_routes.parquet` preserves the provided vector line geometry for
 mapping and comparison. It includes `v_nom_kv`, `capacity_mw`, and
 `capacity_unit` columns so explicit source voltage or MW line-rating values can
-be carried through when present. These fields remain blank when the supplied
+be carried through when present. These fields remain blank when the provided
 route data do not state them. The route geometry is not converted into
 `lines.csv` because the source attributes do not identify electrical
 endpoint substations or complete line ratings. Add `lines.csv` when

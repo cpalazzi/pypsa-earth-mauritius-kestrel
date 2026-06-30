@@ -12,12 +12,12 @@ The public model interface to keep stable is:
 EnergyModel().simulate(network, disruptions)
 ```
 
-- `network`: a prepared PyPSA network for the supplied fixed-capacity system;
+- `network`: a prepared PyPSA network for the provided fixed-capacity system;
 - `disruptions`: asset type, asset ID and the share that remains usable;
 - output: `SimulationResult(metrics: dict, network)`, including electricity
   supplied, electricity not supplied and cost.
 
-The model dispatches supplied assets only. New power stations, lines or storage
+The model dispatches the provided assets only. New power stations, lines or storage
 must appear in the input system before the run starts. Future investment
 questions belong in the PyPSA-Earth comparison work or in a separately defined
 adaptation study.
@@ -139,7 +139,7 @@ that saved network with `--network` / `--network-source`, run a baseline case an
 an outage case from a disruption table. Existing wind and solar generators can
 receive an optional availability profile during network build, but the
 workflow does not yet create those profiles automatically from PyPSA-Earth
-weather files. Without a supplied availability table, every non-damaged
+weather files. Without a provided availability table, every non-damaged
 generator is available up to its full installed capacity in every time step.
 Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
@@ -149,7 +149,7 @@ OSM-derived inferred network at
 `data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
 line extraction fallback when no cached GridFinder/OSM distribution file is
 present. The reviewed `base` network is still blocked until `lines.csv`,
-`generators.csv` and `demand_profile.csv` are supplied.
+`generators.csv` and `demand_profile.csv` are provided.
 
 ## Data stages
 

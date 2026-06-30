@@ -14,7 +14,7 @@ new generation, lines or storage.
 
 **Interruption model (primary)** — code in `src/mu_star_energy/`, notebooks in
 `notebooks/00-data-review/`, `01-build-network/` and `02-interruption-analysis/`. Runs a
-supplied system and tests asset outages:
+provided system and tests asset outages:
 
 ```text
 source data -> reviewed tables -> PyPSA network -> outage cases -> unserved energy
