@@ -8,6 +8,7 @@ under ``data/0-incoming/energy/osm/<region>/roads.parquet``.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,11 +16,15 @@ import geopandas as gpd
 
 from mu_star_energy.paths import incoming_energy_dir
 
-# Each key maps a region name to its OSM/Nominatim query; fetch one region at a
-# time. For Mauritius the keys are "mauritius" (the main island only -- the bare
-# country name "Mauritius" would also pull in the outer islands), "rodrigues",
-# "agalega" and "st_brandon" (sparsely mapped, so an empty road network is
-# expected). Add a key here to reuse this workflow for another area.
+
+class OSMDownloadRequired(RuntimeError):
+    """Raised when OSM data is needed but downloading was not permitted."""
+
+# Convenience shortcuts: a short key maps to a full OSM/Nominatim query. These
+# are optional -- the fetch functions accept any query string (e.g.
+# "Rodrigues, Mauritius"), so the workflow is not limited to the entries below.
+# For Mauritius, "mauritius" targets the main island only; the bare country name
+# would also pull in the outer islands. Add a shortcut for places you fetch often.
 REGIONS: dict[str, str] = {
     "mauritius": "Mauritius Island, Mauritius",
     "rodrigues": "Rodrigues, Mauritius",
@@ -30,6 +35,25 @@ REGIONS: dict[str, str] = {
 GEOGRAPHIC_CRS = "EPSG:4326"
 
 
+def region_query(region: str) -> str:
+    """Resolve a region to an OSM/Nominatim query: a REGIONS shortcut if one
+    matches, otherwise the string as given."""
+    return REGIONS.get(region.strip().lower(), region.strip())
+
+
+def region_slug(region: str) -> str:
+    """Filesystem-safe key for cache folders and output names, e.g.
+    "Rodrigues, Mauritius" -> "rodrigues_mauritius"."""
+    slug = re.sub(r"[^a-z0-9]+", "_", region.strip().lower()).strip("_")
+    return slug or "region"
+
+
+def _require_region(region: str) -> str:
+    if not str(region).strip():
+        raise ValueError("region must be a non-empty OSM/Nominatim query")
+    return str(region).strip()
+
+
 @dataclass(frozen=True)
 class OSMRoadsOutput:
     region: str
@@ -38,11 +62,11 @@ class OSMRoadsOutput:
 
 
 def osm_roads_path(region: str) -> Path:
-    return incoming_energy_dir() / "osm" / region.lower() / "roads.parquet"
+    return incoming_energy_dir() / "osm" / region_slug(region) / "roads.parquet"
 
 
 def osm_power_path(region: str) -> Path:
-    return incoming_energy_dir() / "osm" / region.lower() / "power.parquet"
+    return incoming_energy_dir() / "osm" / region_slug(region) / "power.parquet"
 
 
 def _empty_roads(region: str) -> gpd.GeoDataFrame:
@@ -61,29 +85,34 @@ def _empty_power_features() -> gpd.GeoDataFrame:
     )
 
 
-def _validate_region(region: str) -> str:
-    region = region.lower()
-    if region not in REGIONS:
-        raise ValueError(f"Unknown region {region!r}; choose from {sorted(REGIONS)}")
-    return region
-
-
 def fetch_osm_roads(
     region: str,
     *,
     network_type: str = "drive",
     overwrite: bool = False,
+    allow_download: bool = False,
 ) -> OSMRoadsOutput:
-    """Download the OSM road network for a region and cache it as LineStrings.
+    """Fetch the OSM road network for a region and cache it as LineStrings.
 
-    Returns the cached file unless ``overwrite`` is set. Regions with no mapped
-    roads (e.g. St Brandon) cache an empty layer rather than failing.
+    ``region`` is any OSM/Nominatim query (e.g. "Rodrigues, Mauritius"); the
+    REGIONS shortcuts expand to full queries. ``network_type`` sets the road
+    detail -- "drive" for the road network, "all" for every mapped way. The
+    cached file is reused unless ``overwrite`` is set. When the data is not
+    cached and ``allow_download`` is False, this raises ``OSMDownloadRequired``
+    instead of contacting OSM, so a run never downloads without being asked.
+    Regions with no mapped roads (e.g. St Brandon) cache an empty layer.
     """
-    region = _validate_region(region)
+    region = _require_region(region)
+    slug = region_slug(region)
 
     path = osm_roads_path(region)
     if path.exists() and not overwrite:
         return OSMRoadsOutput(region, path, len(gpd.read_parquet(path)))
+    if not allow_download:
+        raise OSMDownloadRequired(
+            f"OSM roads for {region!r} are not cached at {path}. "
+            "Set allow_download=True (notebook: ALLOW_DOWNLOAD = True) to fetch them."
+        )
 
     import osmnx as ox  # imported lazily; needs network access
 
@@ -96,10 +125,10 @@ def fetch_osm_roads(
         InsufficientResponseError = Exception  # type: ignore[assignment]
 
     try:
-        graph = ox.graph_from_place(REGIONS[region], network_type=network_type)
+        graph = ox.graph_from_place(region_query(region), network_type=network_type)
         roads = ox.graph_to_gdfs(graph, nodes=False).reset_index()[["geometry"]]
         roads["source"] = "osm_roads"
-        roads["region"] = region
+        roads["region"] = slug
         roads = roads[["source", "region", "geometry"]]
     except InsufficientResponseError:
         roads = _empty_roads(region)
@@ -109,12 +138,25 @@ def fetch_osm_roads(
     return OSMRoadsOutput(region, path, len(roads))
 
 
-def fetch_osm_power_features(region: str, *, overwrite: bool = False) -> Path:
-    """Download OSM power features for a region and cache them as bus points."""
-    region = _validate_region(region)
+def fetch_osm_power_features(
+    region: str, *, overwrite: bool = False, allow_download: bool = False
+) -> Path:
+    """Fetch OSM power features for a region and cache them as bus points.
+
+    Accepts any OSM/Nominatim query. Like ``fetch_osm_roads``, this raises
+    ``OSMDownloadRequired`` when the data is not cached and ``allow_download``
+    is False.
+    """
+    region = _require_region(region)
+    slug = region_slug(region)
     path = osm_power_path(region)
     if path.exists() and not overwrite:
         return path
+    if not allow_download:
+        raise OSMDownloadRequired(
+            f"OSM power features for {region!r} are not cached at {path}. "
+            "Set allow_download=True (notebook: ALLOW_DOWNLOAD = True) to fetch them."
+        )
 
     import osmnx as ox  # imported lazily; needs network access
 
@@ -127,7 +169,7 @@ def fetch_osm_power_features(region: str, *, overwrite: bool = False) -> Path:
 
     try:
         features = ox.features_from_place(
-            REGIONS[region],
+            region_query(region),
             tags={"power": ["substation", "plant", "generator"]},
         )
         if features.empty:
@@ -145,9 +187,9 @@ def fetch_osm_power_features(region: str, *, overwrite: bool = False) -> Path:
             power = gpd.GeoDataFrame(
                 {
                     "source": "osm_power",
-                    "region": region,
+                    "region": slug,
                     "bus_id": [
-                        f"{region.upper()}_SUB_{number:03d}"
+                        f"{slug.upper()}_SUB_{number:03d}"
                         for number in range(1, len(metric) + 1)
                     ],
                     "power": power_values,

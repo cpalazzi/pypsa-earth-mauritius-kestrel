@@ -21,7 +21,7 @@ from mu_star_energy.distribution_network import (
     write_inferred_distribution_tables,
 )
 from mu_star_energy.network import assert_fixed_capacity, build_topology_network
-from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
+from mu_star_energy.paths import processed_energy_dir
 
 BASE_REQUIRED_FILES = (
     "snapped_substations.parquet",
@@ -164,17 +164,6 @@ def _empty_generators() -> pd.DataFrame:
     )
 
 
-def _load_generators(input_dir: Path, *, inferred_bus_ids: bool) -> pd.DataFrame:
-    path = input_dir / "generators.csv"
-    if not path.exists():
-        return _empty_generators()
-    generators = pd.read_csv(path)
-    if inferred_bus_ids and not generators.empty:
-        generators = generators.copy()
-        generators["bus_id"] = "bus::" + generators["bus_id"].astype(str)
-    return generators
-
-
 def _node_bus_frame(graph: nx.Graph) -> gpd.GeoDataFrame:
     rows = [
         {
@@ -246,46 +235,6 @@ def _equal_service_weights(bus_frame: gpd.GeoDataFrame) -> pd.DataFrame:
             "service_weight": [1 / len(bus_ids)] * len(bus_ids),
         }
     )
-
-
-def _inferred_service_weights(
-    graph: nx.Graph,
-    reviewed_weights: pd.DataFrame,
-    bus_frame: gpd.GeoDataFrame,
-) -> pd.DataFrame:
-    weights = pd.Series(0.0, index=bus_frame["bus_id"].astype(str))
-    reviewed = reviewed_weights.set_index("bus_id")["service_weight"]
-    for bus_id, weight in reviewed.items():
-        bus_node = f"bus::{bus_id}"
-        if bus_node not in graph:
-            continue
-        demand_node = bus_node
-        for neighbour in graph.neighbors(bus_node):
-            edge = graph.edges[bus_node, neighbour]
-            if edge.get("source") == "substation_anchor":
-                demand_node = neighbour
-                break
-        if demand_node in weights.index:
-            weights.loc[demand_node] += float(weight)
-
-    total = float(weights.sum())
-    if total == 0:
-        weights.loc[:] = 1 / len(weights)
-    else:
-        weights = weights / total
-    return pd.DataFrame({"bus_id": weights.index, "service_weight": weights.values})
-
-
-def _fallback_pypsa_earth_osm_lines() -> Path | None:
-    path = (
-        Path.cwd()
-        / "pypsa-earth"
-        / "resources"
-        / "mauritius-year-1"
-        / "base_network"
-        / "all_lines_build_network.geojson"
-    )
-    return path if path.exists() else None
 
 
 def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
@@ -380,10 +329,8 @@ def _provisional_root_substation(region: str, roads: gpd.GeoDataFrame | None) ->
     )
 
 
-def _inferred_table_dir(output_dir: Path, region: str | None) -> Path:
-    if region is None:
-        return output_dir / "inferred_distribution"
-    return output_dir / f"inferred_distribution-{region}"
+def _inferred_table_dir(output_dir: Path, region: str) -> Path:
+    return output_dir / f"inferred_distribution-{osm.region_slug(region)}"
 
 
 def _substation_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
@@ -401,58 +348,30 @@ def _build_inferred_network(
     output_dir: Path,
     network_path: Path,
     metadata_path: Path,
-    region: str | None,
-    gridfinder_lines_path: Path | None,
-    osm_distribution_lines_path: Path | None,
-    allow_pypsa_earth_osm_fallback: bool,
+    region: str,
+    allow_download: bool,
+    network_type: str,
     max_anchor_distance_m: float,
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
 ) -> NetworkBuildOutputs:
-    fallback_path = None
     provisional_root = False
-    if region is not None:
-        roads_result = osm.fetch_osm_roads(region)
-        osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
-        power_result = osm.fetch_osm_power_features(region)
-        substations = _normalise_power_substations(
-            _coerce_vector_fetch_result(power_result),
-            region=region,
-        )
-        if substations.empty:
-            substations = _provisional_root_substation(region, osm_distribution_lines)
-            provisional_root = True
-        gridfinder_lines = None
-        generators = _empty_generators()
-    else:
-        substations_path = input_dir / "snapped_substations.parquet"
-        service_weights_path = input_dir / "service_weights.csv"
-        if not substations_path.exists() or not service_weights_path.exists():
-            raise FileNotFoundError(
-                "Inferred network build requires snapped_substations.parquet and "
-                "service_weights.csv from prepare-assets."
-            )
-
-        gridfinder_lines = _read_optional_vector(gridfinder_lines_path)
-        osm_distribution_lines = _read_optional_vector(osm_distribution_lines_path)
-        if (
-            gridfinder_lines is None
-            and osm_distribution_lines is None
-            and allow_pypsa_earth_osm_fallback
-        ):
-            fallback_path = _fallback_pypsa_earth_osm_lines()
-            osm_distribution_lines = _read_optional_vector(fallback_path)
-
-        if gridfinder_lines is None and osm_distribution_lines is None:
-            raise FileNotFoundError(
-                "No GridFinder, OSM distribution, or PyPSA-Earth OSM line file is available."
-            )
-        substations = gpd.read_parquet(substations_path)
-        generators = _load_generators(input_dir, inferred_bus_ids=True)
+    roads_result = osm.fetch_osm_roads(
+        region, network_type=network_type, allow_download=allow_download
+    )
+    osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
+    power_result = osm.fetch_osm_power_features(region, allow_download=allow_download)
+    substations = _normalise_power_substations(
+        _coerce_vector_fetch_result(power_result),
+        region=region,
+    )
+    if substations.empty:
+        substations = _provisional_root_substation(region, osm_distribution_lines)
+        provisional_root = True
 
     graph = build_inferred_distribution_graph(
         substations,
-        gridfinder_lines=gridfinder_lines,
+        gridfinder_lines=None,
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=max_anchor_distance_m,
     )
@@ -468,15 +387,11 @@ def _build_inferred_network(
         default_voltage_kv=inferred_voltage_kv,
         default_capacity_mva=inferred_capacity_mva,
     )
-    if region is None:
-        reviewed_weights = pd.read_csv(service_weights_path)
-        service_weights = _inferred_service_weights(graph, reviewed_weights, buses)
-    else:
-        service_weights = _equal_service_weights(buses)
+    service_weights = _equal_service_weights(buses)
     service_weights_path_out = table_dir / "service_weights.csv"
     service_weights.to_csv(service_weights_path_out, index=False)
 
-    network = build_topology_network(buses, lines, generators)
+    network = build_topology_network(buses, lines, _empty_generators())
     anchored, unanchored = _substation_anchor_counts(graph)
     _write_network(network_path, network)
     _write_metadata(
@@ -486,6 +401,7 @@ def _build_inferred_network(
             "input_dir": str(input_dir),
             "network": str(network_path),
             "region": region,
+            "network_type": network_type,
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -494,13 +410,6 @@ def _build_inferred_network(
             "loads": 0,
             "inferred": True,
             "stage": "connectivity_only",
-            "gridfinder_lines_path": str(gridfinder_lines_path)
-            if gridfinder_lines_path
-            else None,
-            "osm_distribution_lines_path": str(osm_distribution_lines_path)
-            if osm_distribution_lines_path
-            else None,
-            "pypsa_earth_osm_fallback": str(fallback_path) if fallback_path else None,
             "service_weights": str(service_weights_path_out),
             "road_edges": len(osm_distribution_lines)
             if osm_distribution_lines is not None
@@ -528,26 +437,49 @@ def build_network(
     input_dir: Path | None = None,
     output_dir: Path | None = None,
     region: str | None = None,
-    gridfinder_lines_path: Path | None = None,
-    osm_distribution_lines_path: Path | None = None,
-    allow_pypsa_earth_osm_fallback: bool = True,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    allow_download: bool = False,
+    network_type: str = "drive",
     max_anchor_distance_m: float = 500,
     inferred_voltage_kv: float = 11,
     inferred_capacity_mva: float = 5,
 ) -> NetworkBuildOutputs:
-    """Build and save a named network-source artifact."""
+    """Build and save a named network-source artifact.
+
+    ``source="base"`` uses the reviewed inputs in ``input_dir``. ``source="inferred"``
+    requires a ``region`` (any OSM/Nominatim query, e.g. "Rodrigues, Mauritius")
+    and builds the topology from that region's OSM roads and power features.
+    Existing outputs are not overwritten unless ``overwrite`` is set, and OSM
+    data is only downloaded when ``allow_download`` is True.
+    """
     source = source.lower()
-    if region is not None:
-        region = region.lower()
-        if source != "inferred":
-            raise ValueError("region can only be used with source='inferred'")
-        if region not in osm.REGIONS:
-            raise ValueError(f"Unknown region {region!r}; choose from {sorted(osm.REGIONS)}")
+    if source not in {"base", "inferred"}:
+        raise ValueError("source must be 'base' or 'inferred'")
+    if region is not None and source != "inferred":
+        raise ValueError("region can only be used with source='inferred'")
+    if source == "inferred" and not region:
+        raise ValueError(
+            "source='inferred' requires a region, e.g. region='Rodrigues, Mauritius' "
+            "or a REGIONS shortcut like 'rodrigues'."
+        )
+
     input_dir = Path(input_dir or processed_energy_dir() / "provided")
     output_dir = Path(output_dir or processed_energy_dir() / "networks")
-    output_stem = f"{source}-{region}" if region is not None else source
+    if output_name:
+        output_stem = output_name
+    elif source == "inferred":
+        output_stem = f"inferred-{osm.region_slug(region)}"
+    else:
+        output_stem = "base"
     network_path = output_dir / f"{output_stem}.nc"
     metadata_path = output_dir / f"{output_stem}_metadata.json"
+
+    if network_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"{network_path} already exists; set overwrite=True (notebook: OVERWRITE = True) "
+            "or pass a different output_name to rebuild it."
+        )
 
     if source == "base":
         return _build_base_network(
@@ -555,20 +487,15 @@ def build_network(
             network_path=network_path,
             metadata_path=metadata_path,
         )
-    if source == "inferred":
-        return _build_inferred_network(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            network_path=network_path,
-            metadata_path=metadata_path,
-            region=region,
-            gridfinder_lines_path=gridfinder_lines_path
-            or incoming_energy_dir() / "gridfinder" / "grid.gpkg",
-            osm_distribution_lines_path=osm_distribution_lines_path
-            or incoming_energy_dir() / "osm" / "distribution_lines.parquet",
-            allow_pypsa_earth_osm_fallback=allow_pypsa_earth_osm_fallback,
-            max_anchor_distance_m=max_anchor_distance_m,
-            inferred_voltage_kv=inferred_voltage_kv,
-            inferred_capacity_mva=inferred_capacity_mva,
-        )
-    raise ValueError("source must be 'base' or 'inferred'")
+    return _build_inferred_network(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        network_path=network_path,
+        metadata_path=metadata_path,
+        region=region,
+        allow_download=allow_download,
+        network_type=network_type,
+        max_anchor_distance_m=max_anchor_distance_m,
+        inferred_voltage_kv=inferred_voltage_kv,
+        inferred_capacity_mva=inferred_capacity_mva,
+    )

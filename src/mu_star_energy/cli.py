@@ -57,9 +57,10 @@ def _build_network(args: argparse.Namespace) -> None:
         input_dir=args.input_dir,
         output_dir=args.output_dir,
         region=args.region,
-        gridfinder_lines_path=args.gridfinder_lines,
-        osm_distribution_lines_path=args.osm_distribution_lines,
-        allow_pypsa_earth_osm_fallback=not args.no_pypsa_earth_osm_fallback,
+        output_name=args.output_name,
+        overwrite=args.overwrite,
+        allow_download=args.allow_download,
+        network_type=args.network_type,
         max_anchor_distance_m=args.max_anchor_distance_m,
         inferred_voltage_kv=args.inferred_voltage_kv,
         inferred_capacity_mva=args.inferred_capacity_mva,
@@ -122,18 +123,17 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("source", choices=["base", "inferred"])
     build.add_argument(
         "--region",
-        choices=sorted(REGIONS),
         default=None,
         help=(
-            "Build an inferred network from OSM roads for one region "
-            "(e.g. mauritius, rodrigues, agalega, st_brandon); mauritius is the main island."
+            "Required for source=inferred: any OSM/Nominatim query (e.g. "
+            "'Rodrigues, Mauritius'). Shortcuts: " + ", ".join(sorted(REGIONS)) + "."
         ),
     )
     build.add_argument(
         "--input-dir",
         type=Path,
         default=processed_energy_dir() / "provided",
-        help="Folder containing reviewed/intermediate network inputs.",
+        help="Folder containing reviewed/intermediate network inputs (source=base).",
     )
     build.add_argument(
         "--output-dir",
@@ -142,21 +142,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Folder where saved network files are written.",
     )
     build.add_argument(
-        "--gridfinder-lines",
-        type=Path,
+        "--output-name",
         default=None,
-        help="Optional GridFinder vector line file for source=inferred.",
+        help="Output file stem (default: 'base', or 'inferred-<region>').",
     )
     build.add_argument(
-        "--osm-distribution-lines",
-        type=Path,
-        default=None,
-        help="Optional OSM distribution vector line file for source=inferred.",
-    )
-    build.add_argument(
-        "--no-pypsa-earth-osm-fallback",
+        "--overwrite",
         action="store_true",
-        help="Do not fall back to the local PyPSA-Earth OSM line extraction.",
+        help="Rebuild and overwrite an existing network file.",
+    )
+    build.add_argument(
+        "--allow-download",
+        action="store_true",
+        help="Permit fetching OSM data when it is not already cached (source=inferred).",
+    )
+    build.add_argument(
+        "--network-type",
+        default="drive",
+        help="OSM road detail for source=inferred: 'drive' (roads) or 'all' (every way).",
     )
     build.add_argument("--max-anchor-distance-m", type=float, default=500)
     build.add_argument("--inferred-voltage-kv", type=float, default=11)

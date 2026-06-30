@@ -9,17 +9,16 @@ Inputs:
 
 - cleaned review tables from `00-data-review`;
 - reviewed `lines.csv` and `generators.csv` for `source = "base"`;
-- optional OSM/GridFinder line files, or the PyPSA-Earth OSM fallback, for
-  `source = "inferred"`.
+- an `OSM_REGION` (any OSM/Nominatim query) for `source = "inferred"`; its roads
+  and substations are fetched from OpenStreetMap and cached.
 
 Outputs:
 
 - `data/1-processed/energy/networks/base.nc` when reviewed base inputs exist;
-- `data/1-processed/energy/networks/inferred.nc` derived from OSM/GridFinder routes;
-- `data/1-processed/energy/networks/inferred-<region>.nc` when
-  `build-network inferred --region <region>` is used;
+- `data/1-processed/energy/networks/inferred-<region>.nc` from a region's OSM
+  roads, e.g. `build-network inferred --region rodrigues`;
 - matching metadata JSON and inferred graph review tables.
 
-Settings users may change: `NETWORK_SOURCE`, anchor distance and inferred
-voltage/capacity assumptions. Demand handling lives in
+Settings users may change: `NETWORK_SOURCE`, `OSM_REGION`, `OUTPUT_NAME`,
+`OVERWRITE`, `ALLOW_DOWNLOAD` and `OSM_NETWORK_TYPE`. Demand handling lives in
 `01_demand_settings.ipynb` and is attached later during interruption analysis.

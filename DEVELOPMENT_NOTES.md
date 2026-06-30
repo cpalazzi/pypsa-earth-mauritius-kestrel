@@ -145,14 +145,13 @@ capacity in every time step.
 Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
 factor for validation.
-`build-network inferred` currently writes a topology-only inferred network
-derived from OSM roads (the GridFinder approach) at
-`data/1-processed/energy/networks/inferred.nc` using the local PyPSA-Earth OSM
-line extraction fallback when no cached GridFinder/OSM distribution file is
-present. `build-network inferred --region rodrigues` fetches cached OSM roads
-and power features for that region and writes
-`data/1-processed/energy/networks/inferred-rodrigues.nc`; if no power feature is
-available, the metadata marks a provisional root. The reviewed `base` topology
+`build-network inferred --region <query>` writes a topology-only inferred
+network from that region's OSM roads and power features (the GridFinder
+approach) to `data/1-processed/energy/networks/inferred-<region>.nc`. The region
+is required (any OSM/Nominatim query, e.g. `rodrigues` or `"Rodrigues, Mauritius"`)
+and OSM is only contacted with `--allow-download`; cached results are reused and
+existing outputs are not overwritten without `--overwrite`. If no power feature
+is found, the metadata marks a provisional root. The reviewed `base` topology
 network is still blocked until `lines.csv` and `generators.csv` are provided;
 interruption runs also require `demand_profile.csv`.
 

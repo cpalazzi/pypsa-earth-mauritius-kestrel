@@ -25,3 +25,20 @@ def test_build_network_accepts_inferred_region_selector():
 
     assert args.source == "inferred"
     assert args.region == "rodrigues"
+
+
+def test_build_network_region_is_open_ended():
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "build-network",
+            "inferred",
+            "--region",
+            "Rodrigues, Mauritius",
+            "--allow-download",
+        ]
+    )
+
+    assert args.region == "Rodrigues, Mauritius"
+    assert args.allow_download is True
