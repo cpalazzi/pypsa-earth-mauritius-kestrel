@@ -11,6 +11,9 @@ NETWORKS_ENERGY = f"{DATA_ROOT}/1-processed/energy/networks"
 ENERGY_OPERATIONS = config.get("energy", {}).get("operations", {})
 ENERGY_SOLVER = ENERGY_OPERATIONS.get("solver", "highs")
 VALUE_OF_LOST_LOAD = ENERGY_OPERATIONS.get("value_of_lost_load_eur_per_mwh", 10000)
+ENERGY_INFERRED_NETWORK = config.get("energy", {}).get("inferred_network", {})
+INFERRED_NETWORK_REGION = ENERGY_INFERRED_NETWORK.get("region", "rodrigues")
+INFERRED_NETWORK_TYPE = ENERGY_INFERRED_NETWORK.get("network_type", "drive")
 
 include: "0-preprocess/energy.smk"
 include: "1-simulate/energy.smk"

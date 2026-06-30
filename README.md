@@ -121,10 +121,11 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
 
    `base` needs the reviewed topology inputs below and fails rather than
    guessing missing values. `build-network inferred --region rodrigues`
-   builds a topology-only network from a region's OSM roads (the GridFinder
-   approach), for testing before reviewed data exists. The region is required
-   and may be any OSM/Nominatim query; add `--allow-download` the first time so
-   it may fetch from OpenStreetMap.
+   builds a topology-only network from a region's OSM roads plus any local
+   GridFinder line layer, for testing before reviewed data exists. The region is
+   required and may be any OSM/Nominatim query; add `--allow-download` the first
+   time so it may fetch missing OpenStreetMap roads. If OSM power features are
+   not cached, the inferred build uses a provisional road-network root instead.
 
 5. **Run interruptions:**
 

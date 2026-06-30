@@ -14,6 +14,7 @@ dependencies = [
     "numpy",
     "osmnx>=2",
     "pandas>=2",
+    "plotly>=6",
     "pyarrow",
     "pypsa>=0.30,<0.31",
     "pyyaml",

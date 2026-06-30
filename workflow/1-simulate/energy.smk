@@ -36,12 +36,18 @@ rule build_inferred_network:
     params:
         input_dir=PROCESSED_ENERGY,
         output_dir=NETWORKS_ENERGY,
+        region=INFERRED_NETWORK_REGION,
+        network_type=INFERRED_NETWORK_TYPE,
         max_anchor_distance_m=1000,
     shell:
         """
         .venv/bin/python -m mu_star_energy.cli build-network inferred \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
+          --output-name inferred \
+          --overwrite \
+          --region {params.region} \
+          --network-type {params.network_type} \
           --max-anchor-distance-m {params.max_anchor_distance_m}
         """
 

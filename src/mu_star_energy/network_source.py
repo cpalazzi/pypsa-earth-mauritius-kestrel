@@ -21,7 +21,7 @@ from mu_star_energy.distribution_network import (
     write_inferred_distribution_tables,
 )
 from mu_star_energy.network import assert_fixed_capacity, build_topology_network
-from mu_star_energy.paths import processed_energy_dir
+from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
 
 BASE_REQUIRED_FILES = (
     "snapped_substations.parquet",
@@ -47,6 +47,16 @@ def _coerce_vector_fetch_result(result: object) -> gpd.GeoDataFrame | None:
     if path is None:
         return None
     return _read_optional_vector(Path(path))
+
+
+def _coerce_optional_vector(
+    value: gpd.GeoDataFrame | str | Path | None,
+) -> gpd.GeoDataFrame | None:
+    if isinstance(value, gpd.GeoDataFrame):
+        return value
+    if value is None:
+        return None
+    return _read_optional_vector(Path(value))
 
 
 def _read_optional_vector(path: Path | None) -> gpd.GeoDataFrame | None:
@@ -329,8 +339,17 @@ def _provisional_root_substation(region: str, roads: gpd.GeoDataFrame | None) ->
     )
 
 
-def _inferred_table_dir(output_dir: Path, region: str) -> Path:
-    return output_dir / f"inferred_distribution-{osm.region_slug(region)}"
+def _default_gridfinder_lines_path() -> Path:
+    return incoming_energy_dir() / "gridfinder" / "grid.gpkg"
+
+
+def _inferred_table_dir(output_dir: Path, output_stem: str) -> Path:
+    if output_stem == "inferred":
+        return output_dir / "inferred_distribution"
+    if output_stem.startswith("inferred-"):
+        suffix = output_stem.removeprefix("inferred-")
+        return output_dir / f"inferred_distribution-{suffix}"
+    return output_dir / f"{output_stem}_inferred_distribution"
 
 
 def _substation_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
@@ -346,11 +365,13 @@ def _build_inferred_network(
     *,
     input_dir: Path,
     output_dir: Path,
+    output_stem: str,
     network_path: Path,
     metadata_path: Path,
     region: str,
     allow_download: bool,
     network_type: str,
+    gridfinder_lines: gpd.GeoDataFrame | str | Path | None,
     max_anchor_distance_m: float,
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
@@ -360,7 +381,13 @@ def _build_inferred_network(
         region, network_type=network_type, allow_download=allow_download
     )
     osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
-    power_result = osm.fetch_osm_power_features(region, allow_download=allow_download)
+    try:
+        power_result = osm.fetch_osm_power_features(
+            region,
+            allow_download=allow_download,
+        )
+    except osm.OSMDownloadRequired:
+        power_result = None
     substations = _normalise_power_substations(
         _coerce_vector_fetch_result(power_result),
         region=region,
@@ -369,13 +396,24 @@ def _build_inferred_network(
         substations = _provisional_root_substation(region, osm_distribution_lines)
         provisional_root = True
 
+    if gridfinder_lines is None:
+        gridfinder_lines_path = _default_gridfinder_lines_path()
+        gridfinder_distribution_lines = _read_optional_vector(gridfinder_lines_path)
+    else:
+        gridfinder_lines_path = (
+            Path(gridfinder_lines)
+            if isinstance(gridfinder_lines, (str, Path))
+            else None
+        )
+        gridfinder_distribution_lines = _coerce_optional_vector(gridfinder_lines)
+
     graph = build_inferred_distribution_graph(
         substations,
-        gridfinder_lines=None,
+        gridfinder_lines=gridfinder_distribution_lines,
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=max_anchor_distance_m,
     )
-    table_dir = _inferred_table_dir(output_dir, region)
+    table_dir = _inferred_table_dir(output_dir, output_stem)
     inferred_tables = write_inferred_distribution_tables(
         graph,
         table_dir,
@@ -414,6 +452,12 @@ def _build_inferred_network(
             "road_edges": len(osm_distribution_lines)
             if osm_distribution_lines is not None
             else 0,
+            "gridfinder_edges": len(gridfinder_distribution_lines)
+            if gridfinder_distribution_lines is not None
+            else 0,
+            "gridfinder_lines_path": str(gridfinder_lines_path)
+            if gridfinder_lines_path is not None
+            else None,
             "anchored_substations": anchored,
             "unanchored_substations": unanchored,
             "provisional_root": provisional_root,
@@ -441,6 +485,7 @@ def build_network(
     overwrite: bool = False,
     allow_download: bool = False,
     network_type: str = "drive",
+    gridfinder_lines: gpd.GeoDataFrame | str | Path | None = None,
     max_anchor_distance_m: float = 500,
     inferred_voltage_kv: float = 11,
     inferred_capacity_mva: float = 5,
@@ -449,9 +494,11 @@ def build_network(
 
     ``source="base"`` uses the reviewed inputs in ``input_dir``. ``source="inferred"``
     requires a ``region`` (any OSM/Nominatim query, e.g. "Rodrigues, Mauritius")
-    and builds the topology from that region's OSM roads and power features.
-    Existing outputs are not overwritten unless ``overwrite`` is set, and OSM
-    data is only downloaded when ``allow_download`` is True.
+    and builds the topology from that region's OSM roads plus an optional local
+    GridFinder line layer. OSM power features are used as substation roots when
+    cached; otherwise a provisional road-network root is created. Existing
+    outputs are not overwritten unless ``overwrite`` is set, and OSM data is
+    only downloaded when ``allow_download`` is True.
     """
     source = source.lower()
     if source not in {"base", "inferred"}:
@@ -490,11 +537,13 @@ def build_network(
     return _build_inferred_network(
         input_dir=input_dir,
         output_dir=output_dir,
+        output_stem=output_stem,
         network_path=network_path,
         metadata_path=metadata_path,
         region=region,
         allow_download=allow_download,
         network_type=network_type,
+        gridfinder_lines=gridfinder_lines,
         max_anchor_distance_m=max_anchor_distance_m,
         inferred_voltage_kv=inferred_voltage_kv,
         inferred_capacity_mva=inferred_capacity_mva,

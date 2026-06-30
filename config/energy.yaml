@@ -3,6 +3,10 @@
 data_root: data
 
 energy:
+  inferred_network:
+    region: rodrigues
+    network_type: drive
+
   distribution_proxy:
     # Paths are relative to data_root. GridFinder estimates possible line
     # routes; it is not confirmed engineering data.

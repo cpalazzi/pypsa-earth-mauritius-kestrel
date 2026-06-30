@@ -61,6 +61,7 @@ def _build_network(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
         allow_download=args.allow_download,
         network_type=args.network_type,
+        gridfinder_lines=args.gridfinder_lines,
         max_anchor_distance_m=args.max_anchor_distance_m,
         inferred_voltage_kv=args.inferred_voltage_kv,
         inferred_capacity_mva=args.inferred_capacity_mva,
@@ -160,6 +161,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--network-type",
         default="drive",
         help="OSM road detail for source=inferred: 'drive' (roads) or 'all' (every way).",
+    )
+    build.add_argument(
+        "--gridfinder-lines",
+        type=Path,
+        default=None,
+        help=(
+            "Optional GridFinder line layer for source=inferred. If omitted, "
+            "data/0-incoming/energy/gridfinder/grid.gpkg is used when present."
+        ),
     )
     build.add_argument("--max-anchor-distance-m", type=float, default=500)
     build.add_argument("--inferred-voltage-kv", type=float, default=11)

@@ -10,7 +10,9 @@ Inputs:
 - cleaned review tables from `00-data-review`;
 - reviewed `lines.csv` and `generators.csv` for `source = "base"`;
 - an `OSM_REGION` (any OSM/Nominatim query) for `source = "inferred"`; its roads
-  and substations are fetched from OpenStreetMap and cached.
+  are fetched from OpenStreetMap and cached, with local GridFinder lines included
+  when present. OSM power features are used as roots when cached; otherwise the
+  inferred graph uses a provisional road-network root.
 
 Outputs:
 
@@ -20,5 +22,6 @@ Outputs:
 - matching metadata JSON and inferred graph review tables.
 
 Settings users may change: `NETWORK_SOURCE`, `OSM_REGION`, `OUTPUT_NAME`,
-`OVERWRITE`, `ALLOW_DOWNLOAD` and `OSM_NETWORK_TYPE`. Demand handling lives in
+`OVERWRITE`, `ALLOW_DOWNLOAD` and `OSM_NETWORK_TYPE`. `NETWORK_SOURCE =
+"inferred"` rebuilds by default so stale topology files are not loaded. Demand handling lives in
 `01_demand_settings.ipynb` and is attached later during interruption analysis.

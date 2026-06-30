@@ -7,6 +7,7 @@ import pytest
 from shapely.geometry import LineString, Point
 
 from mu_star_energy.network_source import build_network
+from mu_star_energy.osm import OSMDownloadRequired
 
 
 def _write_base_inputs(input_dir):
@@ -145,3 +146,58 @@ def test_build_inferred_network_for_region_uses_osm_fixtures(tmp_path, monkeypat
     assert metadata["has_demand"] is False
     assert network.loads.empty
     assert len(network.lines) >= 1
+
+
+def test_build_inferred_uses_gridfinder_and_cached_roads_without_power(
+    tmp_path,
+    monkeypatch,
+):
+    roads = gpd.GeoDataFrame(
+        {
+            "source": ["osm_roads"],
+            "region": ["rodrigues"],
+            "geometry": [LineString([(63.42, -19.72), (63.421, -19.72)])],
+        },
+        crs="EPSG:4326",
+    )
+    gridfinder = gpd.GeoDataFrame(
+        {
+            "source": ["gridfinder"],
+            "region": ["rodrigues"],
+            "geometry": [LineString([(63.422, -19.721), (63.423, -19.721)])],
+        },
+        crs="EPSG:4326",
+    )
+
+    monkeypatch.setattr(
+        "mu_star_energy.network_source.osm.fetch_osm_roads",
+        lambda region, **kwargs: roads,
+    )
+
+    def missing_power(region, **kwargs):
+        raise OSMDownloadRequired("power cache missing")
+
+    monkeypatch.setattr(
+        "mu_star_energy.network_source.osm.fetch_osm_power_features",
+        missing_power,
+    )
+
+    outputs = build_network(
+        "inferred",
+        region="rodrigues",
+        input_dir=tmp_path / "inputs",
+        output_dir=tmp_path / "networks",
+        gridfinder_lines=gridfinder,
+        max_anchor_distance_m=1000,
+    )
+
+    metadata = json.loads(outputs.metadata.read_text())
+    network = pypsa.Network(outputs.network)
+
+    assert metadata["road_edges"] == 1
+    assert metadata["gridfinder_edges"] == 1
+    assert metadata["provisional_root"] is True
+    assert any(
+        str(line_id).startswith("gridfinder_") for line_id in network.lines.index
+    )
+    assert any(str(line_id).startswith("osm_") for line_id in network.lines.index)
