@@ -7,9 +7,14 @@ or taken out of service.
 
 This is an operational model of a fixed set of assets.
 
-## Two tracks
+## Two models in this repo
 
-**Interruption model (primary)** — code in `src/mu_star_energy/`, notebooks in
+Two separate models sit side by side. The split is the modelling approach —
+the mu-star energy model vs the PyPSA-Earth reference — not the `base` and
+`inferred` network sources inside the interruption model.
+
+**Interruption model (primary)** — the mu-star `energy` component: code in
+`src/mu_star_energy/`, notebooks in
 `notebooks/00-data-review/`, `01-build-network/` and `02-interruption-analysis/`. Runs a
 provided system and tests asset outages:
 
@@ -46,7 +51,7 @@ model except `pypsa-earth/`, `arc/` and `references/`.
 │   ├── 01-build-network/
 │   └── 02-interruption-analysis/
 
-# PyPSA-Earth reference — vendored, with its own config/data inside
+# PyPSA-Earth reference — with its own config/data inside
 ├── pypsa-earth/             # Vendored PyPSA-Earth code and outputs
 ├── arc/                     # Scripts to run PyPSA-Earth on the ARC cluster
 ├── references/              # Reference data sheets
