@@ -3,12 +3,9 @@
 The Mauritius electricity component of the
 [`mu-star`](https://github.com/nismod/mu-star) infrastructure risk workflow. It
 measures how much demand goes unserved when existing energy assets are damaged
-or taken out of service: for each hour it dispatches the available power
-stations to meet demand and reports unserved energy, the share of demand served
-and operating cost.
+or taken out of service.
 
-This is an operational model of a fixed set of assets — it does not size or site
-new generation, lines or storage.
+This is an operational model of a fixed set of assets.
 
 ## Two tracks
 
@@ -84,13 +81,17 @@ The builder creates AC `Line` and `Generator` components only. See the
 
 ## Setup
 
+Create a virtual environment (Python 3.10 or 3.11) and install the model:
+
 ```bash
-./local_setup.sh
+python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
+Use the `.venv` kernel for the notebooks and run the tests with `.venv/bin/pytest`.
+To also set up the vendored PyPSA-Earth reference, run `./local_setup.sh`, which
+reuses the same `.venv`.
 
 ## Workflow
 
@@ -119,13 +120,14 @@ Use the `.venv` kernel for notebooks. Check the install with `.venv/bin/pytest`.
    .venv/bin/python -m mu_star_energy.cli build-network base
    ```
 
-   `base` needs the reviewed topology inputs below and fails rather than
-   guessing missing values. `build-network inferred --region rodrigues`
-   builds a topology-only network from a region's OSM roads plus any local
-   GridFinder line layer, for testing before reviewed data exists. The region is
-   required and may be any OSM/Nominatim query; add `--allow-download` the first
-   time so it may fetch missing OpenStreetMap roads. If OSM power features are
-   not cached, the inferred build uses a provisional road-network root instead.
+   `base` builds from the reviewed inputs below and fails rather than guess
+   missing values. `build-network inferred --region rodrigues` instead derives a
+   topology-only network from a region's OSM roads, saved as
+   `inferred-<region>.nc`, for testing before reviewed data exists. The region
+   is required and can be any OSM/Nominatim query; add `--allow-download` the
+   first time to fetch the roads from OpenStreetMap. A local GridFinder layer is
+   used if present, and a provisional root stands in when no OSM substations are
+   found.
 
 5. **Run interruptions:**
 
@@ -168,11 +170,9 @@ labelled and separate — never merged into the reviewed `base` inputs.
 
 ## Guardrails
 
-- Don't modify source files in `data/0-incoming/`.
-- Don't present inferred lines, GridFinder routes or polygon sizes as confirmed
-  CEB data.
-- Don't let the interruption model build new generation, lines or storage.
-- If you rename an asset ID, keep a table mapping old to new.
+- Don't change source files under `data/0-incoming/`.
+- Don't present inferred or GridFinder lines as confirmed CEB data.
+- Don't let the interruption model add new generation, lines or storage.
 
 ## PyPSA-Earth comparisons
 

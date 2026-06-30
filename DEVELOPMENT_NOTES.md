@@ -89,8 +89,7 @@ Standalone run path:
   templates.
 - `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
   lines, generators, demand and service weights.
-- `network_source.py`: builds saved `base` and `inferred` PyPSA network
-  saved network files from named source paths.
+- `network_source.py`: builds and saves `base` and `inferred` PyPSA networks.
 - `model.py`: applies disruptions to a copied network, optimises supply and
   returns standard supply metrics.
 - `damage.py`: converts asset damage fractions into usable asset fractions for
@@ -103,25 +102,19 @@ Standalone run path:
   disconnection impacts.
 - `paths.py`: centralises repository and data-stage paths, including
   `MU_STAR_DATA_ROOT`.
-- `cli.py`: exposes the current `prepare-assets` and `run-interruptions`
-  command-line entry points.
+- `cli.py`: exposes the `prepare-assets`, `build-network`, `run-interruptions`
+  and `prepare-inferred-distribution` command-line entry points.
 - `runner.py`: loads reviewed model inputs, runs baseline/outage simulations
   and writes metrics, network files and unmet-demand tables.
 
 ## Current state
 
-The repository now contains two related but separate models:
-
-1. **Interruption model:** provided and CEB data currently describe
-   the power stations, substations, transmission lines and demand in Mauritius.
-   This is the model intended for outage and damage analysis.
-2. **PyPSA-Earth comparison model:** open data are used to build and optimise a
-   possible power system. This model also produces useful hourly demand,
-   weather and renewable-energy profiles.
-
-The interruption model does not currently import PyPSA-Earth files automatically.
-PyPSA-Earth data are optional supporting inputs, not the default source of
-existing assets or capacities.
+The repository holds two separate models: the **interruption model** (provided
+and CEB data describing Mauritius power stations, substations, lines and demand,
+used for outage and damage analysis) and the **PyPSA-Earth comparison model**
+(an open-data build for hourly demand, weather and renewable profiles). The
+interruption model does not import PyPSA-Earth files automatically; those are
+optional supporting inputs, not the default asset source.
 
 Current interruption-model preparation produces:
 
