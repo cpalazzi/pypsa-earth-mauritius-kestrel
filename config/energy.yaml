@@ -3,6 +3,14 @@
 data_root: data
 
 energy:
+  base_network:
+    # Bridge only short breaks in the provided transmission route geometry.
+    route_gap_tolerance_m: 75
+    # Source routes are the CEB 66 kV network. The high topology rating avoids
+    # inventing congestion before reviewed line ratings are available.
+    default_voltage_kv: 66
+    topology_capacity_mva: 10000
+
   inferred_network:
     region: rodrigues
     network_type: drive
@@ -17,3 +25,12 @@ energy:
     solver: highs
     value_of_lost_load_eur_per_mwh: 10000
     capacity_expansion: false
+
+  validation:
+    # CEB reports 442 km overhead plus 36.9 km underground at 66 kV.
+    # This is an advisory coverage check because route and circuit length may differ.
+    ceb_transmission_length_km: 478.9
+    line_length_tolerance_fraction: 0.35
+    # CEB Annual Report 2023-2024 pp. 50-51, installed-capacity grand total.
+    ceb_reported_installed_generation_mw: 881.56
+    generation_capacity_tolerance_fraction: 0.10

@@ -1,4 +1,4 @@
-"""Load reviewed inputs, run baseline/outage cases and write result tables."""
+"""Load a saved PyPSA network, run baseline/outage cases and write results."""
 
 from __future__ import annotations
 
@@ -6,13 +6,12 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-import geopandas as gpd
 import pandas as pd
 import pypsa
 
 from mu_star_energy.damage import damage_to_disruptions
 from mu_star_energy.model import EnergyModel, SimulationResult
-from mu_star_energy.network import attach_demand, build_operational_network
+from mu_star_energy.network import attach_demand
 
 
 @dataclass(frozen=True)
@@ -57,15 +56,13 @@ def _load_disruptions(path: Path | None) -> pd.DataFrame:
     if "fraction" in frame.columns:
         damage = frame.rename(columns={"fraction": "damage_fraction"})
         return damage_to_disruptions(damage)
-    raise ValueError(
-        "Disruption file must contain available_fraction, damage_fraction or fraction"
-    )
+    raise ValueError("Disruption file must contain available_fraction, damage_fraction or fraction")
 
 
 def _metrics_frame(rows: list[tuple[str, SimulationResult]]) -> pd.DataFrame:
-    return pd.DataFrame(
-        [{"case": case, **result.metrics} for case, result in rows]
-    ).set_index("case")
+    return pd.DataFrame([{"case": case, **result.metrics} for case, result in rows]).set_index(
+        "case"
+    )
 
 
 def _summarize_demand_series(
@@ -91,9 +88,7 @@ def _summarize_demand_series(
 
 
 def _demand_summary_frame(network) -> pd.DataFrame:
-    demand = network.get_switchable_as_dense("Load", "p_set").reindex(
-        network.snapshots
-    )
+    demand = network.get_switchable_as_dense("Load", "p_set").reindex(network.snapshots)
     weights = network.snapshot_weightings.generators.reindex(network.snapshots).fillna(1.0)
     duration_hours = float(weights.sum())
 
@@ -133,9 +128,7 @@ def _write_unserved_energy(path: Path, result: SimulationResult) -> None:
     shedding_names = result.network.generators.index[
         result.network.generators.carrier.eq("load_shedding")
     ]
-    shedding = result.network.generators_t.p.reindex(columns=shedding_names).clip(
-        lower=0.0
-    )
+    shedding = result.network.generators_t.p.reindex(columns=shedding_names).clip(lower=0.0)
     weights = result.network.snapshot_weightings.generators.reindex(
         result.network.snapshots
     ).fillna(1.0)
@@ -158,7 +151,7 @@ def run_interruption_analysis(
     input_dir: Path,
     output_dir: Path,
     *,
-    network_path: Path | None = None,
+    network_path: Path,
     solver_name: str = "highs",
     value_of_lost_load: float = 10_000,
     disruptions_path: Path | None = None,
@@ -166,62 +159,37 @@ def run_interruption_analysis(
     require_no_baseline_shedding: bool = False,
     export_networks: bool = True,
 ) -> RunOutputs:
-    """Load or build a fixed-capacity network and run optional outage cases."""
+    """Load a saved fixed-capacity network and run optional outage cases."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if network_path is not None:
-        demand_path = input_dir / "demand_profile.csv"
-        if not demand_path.exists():
-            raise FileNotFoundError(
-                f"{demand_path} is missing. Saved networks are topology-only; "
-                "attach demand from demand_profile.csv before simulation."
-            )
-        demand = read_time_series_csv(demand_path, label="demand_profile")
-        service_weights = pd.read_csv(input_dir / "service_weights.csv")
-        generator_availability = (
-            read_time_series_csv(
-                generator_availability_path,
-                label="generator_availability",
-            )
-            if generator_availability_path
-            else None
+    network_path = Path(network_path)
+    if not network_path.exists():
+        raise FileNotFoundError(f"Saved PyPSA network is missing: {network_path}")
+    demand_path = input_dir / "demand_profile.csv"
+    if not demand_path.exists():
+        raise FileNotFoundError(
+            f"{demand_path} is missing. Saved networks are topology-only; "
+            "attach demand from demand_profile.csv before simulation."
         )
-        network = attach_demand(
-            pypsa.Network(network_path),
-            demand,
-            service_weights,
-            generator_availability=generator_availability,
-            value_of_lost_load=value_of_lost_load,
+    demand = read_time_series_csv(demand_path, label="demand_profile")
+    service_weights = pd.read_csv(input_dir / "service_weights.csv")
+    generator_availability = (
+        read_time_series_csv(
+            generator_availability_path,
+            label="generator_availability",
         )
-    else:
-        buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
-        lines = pd.read_csv(input_dir / "lines.csv")
-        generators = pd.read_csv(input_dir / "generators.csv")
-        demand = read_time_series_csv(
-            input_dir / "demand_profile.csv",
-            label="demand_profile",
-        )
-        service_weights = pd.read_csv(input_dir / "service_weights.csv")
-        generator_availability = (
-            read_time_series_csv(
-                generator_availability_path,
-                label="generator_availability",
-            )
-            if generator_availability_path
-            else None
-        )
-
-        network = build_operational_network(
-            buses,
-            lines,
-            generators,
-            demand,
-            service_weights,
-            generator_availability=generator_availability,
-            value_of_lost_load=value_of_lost_load,
-        )
+        if generator_availability_path
+        else None
+    )
+    network = attach_demand(
+        pypsa.Network(network_path),
+        demand,
+        service_weights,
+        generator_availability=generator_availability,
+        value_of_lost_load=value_of_lost_load,
+    )
     demand_summary = output_dir / "demand_summary.csv"
     _write_demand_summary(demand_summary, network)
 

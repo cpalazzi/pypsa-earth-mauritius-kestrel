@@ -14,7 +14,7 @@ Outputs:
 
 - cleaned substations, snapped substations and snap-distance reports;
 - transmission route geometry for review;
-- generation register template;
+- generated generator table with report capacity and nearest-bus assignment;
 - monthly peak and annual sector demand summaries.
 
 Settings users may change: data root via `MU_STAR_DATA_ROOT`. Keep source files

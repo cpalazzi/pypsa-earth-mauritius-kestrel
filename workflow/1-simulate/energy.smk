@@ -3,26 +3,42 @@
 rule build_base_network:
     input:
         buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        lines=f"{PROCESSED_ENERGY}/lines.csv",
+        routes=f"{PROCESSED_ENERGY}/transmission_routes.parquet",
         generators=f"{PROCESSED_ENERGY}/generators.csv",
-        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
     output:
         network=f"{NETWORKS_ENERGY}/base.nc",
         metadata=f"{NETWORKS_ENERGY}/base_metadata.json",
+        generators=f"{OUTPUT_ENERGY}/base/generators.csv",
+        lines=f"{OUTPUT_ENERGY}/base/lines.csv",
+        validation=f"{OUTPUT_ENERGY}/base/validation.json",
     params:
         input_dir=PROCESSED_ENERGY,
         output_dir=NETWORKS_ENERGY,
+        export_root=OUTPUT_ENERGY,
+        reference_line_length_km=CEB_LINE_LENGTH_KM,
+        line_length_tolerance=LINE_LENGTH_TOLERANCE,
+        reference_generation_capacity_mw=CEB_GENERATION_CAPACITY_MW,
+        generation_capacity_tolerance=GENERATION_CAPACITY_TOLERANCE,
+        route_gap_tolerance_m=BASE_ROUTE_GAP_TOLERANCE_M,
+        default_voltage_kv=BASE_DEFAULT_VOLTAGE_KV,
+        topology_capacity_mva=BASE_TOPOLOGY_CAPACITY_MVA,
     shell:
         """
         .venv/bin/python -m mu_star_energy.cli build-network base \
           --input-dir {params.input_dir} \
-          --output-dir {params.output_dir}
+          --output-dir {params.output_dir} \
+          --export-root {params.export_root} \
+          --overwrite \
+          --reference-line-length-km {params.reference_line_length_km} \
+          --line-length-tolerance-fraction {params.line_length_tolerance} \
+          --reference-generation-capacity-mw {params.reference_generation_capacity_mw} \
+          --generation-capacity-tolerance-fraction {params.generation_capacity_tolerance} \
+          --base-route-gap-tolerance-m {params.route_gap_tolerance_m} \
+          --base-default-voltage-kv {params.default_voltage_kv} \
+          --base-topology-capacity-mva {params.topology_capacity_mva}
         """
 
 rule build_inferred_network:
-    input:
-        buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
-        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
     output:
         network=f"{NETWORKS_ENERGY}/inferred.nc",
         metadata=f"{NETWORKS_ENERGY}/inferred_metadata.json",
@@ -33,22 +49,29 @@ rule build_inferred_network:
             f"{NETWORKS_ENERGY}/inferred_distribution/"
             "inferred_distribution_metadata.json"
         ),
+        generators=f"{OUTPUT_ENERGY}/inferred/generators.csv",
+        lines=f"{OUTPUT_ENERGY}/inferred/lines.csv",
+        validation=f"{OUTPUT_ENERGY}/inferred/validation.json",
     params:
         input_dir=PROCESSED_ENERGY,
         output_dir=NETWORKS_ENERGY,
+        export_root=OUTPUT_ENERGY,
         region=INFERRED_NETWORK_REGION,
         network_type=INFERRED_NETWORK_TYPE,
         max_anchor_distance_m=1000,
+        line_length_tolerance=LINE_LENGTH_TOLERANCE,
     shell:
         """
         .venv/bin/python -m mu_star_energy.cli build-network inferred \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
+          --export-root {params.export_root} \
           --output-name inferred \
           --overwrite \
           --region {params.region} \
           --network-type {params.network_type} \
-          --max-anchor-distance-m {params.max_anchor_distance_m}
+          --max-anchor-distance-m {params.max_anchor_distance_m} \
+          --line-length-tolerance-fraction {params.line_length_tolerance}
         """
 
 rule run_energy_baseline:

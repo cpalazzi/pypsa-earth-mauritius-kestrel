@@ -65,6 +65,14 @@ def _build_network(args: argparse.Namespace) -> None:
         max_anchor_distance_m=args.max_anchor_distance_m,
         inferred_voltage_kv=args.inferred_voltage_kv,
         inferred_capacity_mva=args.inferred_capacity_mva,
+        export_root=args.export_root,
+        reference_line_length_km=args.reference_line_length_km,
+        line_length_tolerance_fraction=args.line_length_tolerance_fraction,
+        reference_generation_capacity_mw=args.reference_generation_capacity_mw,
+        generation_capacity_tolerance_fraction=(args.generation_capacity_tolerance_fraction),
+        base_route_gap_tolerance_m=args.base_route_gap_tolerance_m,
+        base_default_voltage_kv=args.base_default_voltage_kv,
+        base_topology_capacity_mva=args.base_topology_capacity_mva,
     )
     print(
         json.dumps(
@@ -112,12 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare-assets")
-    prepare.add_argument(
-        "--input-dir", type=Path, default=incoming_energy_dir() / "provided"
-    )
-    prepare.add_argument(
-        "--output-dir", type=Path, default=processed_energy_dir() / "provided"
-    )
+    prepare.add_argument("--input-dir", type=Path, default=incoming_energy_dir() / "provided")
+    prepare.add_argument("--output-dir", type=Path, default=processed_energy_dir() / "provided")
     prepare.set_defaults(func=_prepare_assets)
 
     build = subparsers.add_parser("build-network")
@@ -141,6 +145,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=processed_energy_dir() / "networks",
         help="Folder where saved network files are written.",
+    )
+    build.add_argument(
+        "--export-root",
+        type=Path,
+        default=output_energy_dir(),
+        help=(
+            "Root for source-specific human CSVs and validation reports "
+            "(default: data/2-out/energy)."
+        ),
     )
     build.add_argument(
         "--output-name",
@@ -174,6 +187,21 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--max-anchor-distance-m", type=float, default=500)
     build.add_argument("--inferred-voltage-kv", type=float, default=11)
     build.add_argument("--inferred-capacity-mva", type=float, default=5)
+    build.add_argument("--reference-line-length-km", type=float, default=478.9)
+    build.add_argument("--line-length-tolerance-fraction", type=float, default=0.35)
+    build.add_argument(
+        "--reference-generation-capacity-mw",
+        type=float,
+        default=881.56,
+    )
+    build.add_argument(
+        "--generation-capacity-tolerance-fraction",
+        type=float,
+        default=0.10,
+    )
+    build.add_argument("--base-route-gap-tolerance-m", type=float, default=75)
+    build.add_argument("--base-default-voltage-kv", type=float, default=66)
+    build.add_argument("--base-topology-capacity-mva", type=float, default=10_000)
     build.set_defaults(func=_build_network)
 
     run = subparsers.add_parser("run-interruptions")
@@ -181,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input-dir",
         type=Path,
         default=processed_energy_dir() / "provided",
-        help="Folder containing reviewed buses, lines, generators, demand and service weights.",
+        help="Folder containing demand, service weights and related run inputs.",
     )
     run.add_argument(
         "--output-dir",
@@ -189,12 +217,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=output_energy_dir(),
         help="Folder where metrics, unmet-demand tables and networks are written.",
     )
-    network_selector = run.add_mutually_exclusive_group()
+    network_selector = run.add_mutually_exclusive_group(required=True)
     network_selector.add_argument(
         "--network",
         type=Path,
         default=None,
-        help="Optional saved PyPSA .nc network file to load instead of rebuilding from CSVs.",
+        help="Saved PyPSA .nc topology network to load.",
     )
     network_selector.add_argument(
         "--network-source",
@@ -215,9 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--generator-availability",
         type=Path,
         default=None,
-        help=(
-            "Optional timestamped CSV with one availability-fraction column per generator_id."
-        ),
+        help=("Optional timestamped CSV with one availability-fraction column per generator_id."),
     )
     run.add_argument("--solver", default="highs")
     run.add_argument("--value-of-lost-load", type=float, default=10_000)

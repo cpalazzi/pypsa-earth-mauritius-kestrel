@@ -1,4 +1,4 @@
-"""Prepare provided asset tables without deriving network connections."""
+"""Prepare provided assets and human-readable network input templates."""
 
 rule prepare_energy_assets:
     input:
@@ -12,7 +12,10 @@ rule prepare_energy_assets:
         snapped_substations=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
         snap_distances=f"{PROCESSED_ENERGY}/substation_snap_distances.csv",
         routes=f"{PROCESSED_ENERGY}/transmission_routes.parquet",
-        register=f"{PROCESSED_ENERGY}/generation_register_template.csv",
+        generators=f"{PROCESSED_ENERGY}/generators.csv",
+        service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
+        generator_template=f"{TEMPLATES_ENERGY}/generators.csv",
+        line_template=f"{TEMPLATES_ENERGY}/lines.csv",
         demand=f"{PROCESSED_ENERGY}/annual_sector_demand_gwh.csv",
     shell:
         """

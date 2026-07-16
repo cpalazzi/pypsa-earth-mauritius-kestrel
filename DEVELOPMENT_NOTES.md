@@ -75,21 +75,24 @@ Delivery checklist:
 Standalone run path:
 
 1. install the package with `pip install -e .`;
-2. run `python -m mu_star_energy.cli prepare-assets`;
-3. review and complete `generators.csv`, `lines.csv`,
-   `demand_profile.csv`, and `service_weights.csv` under
+2. run `python -m mu_star_energy.cli prepare-assets` to generate cleaned source
+   evidence and the human CSV schemas under `data/1-processed/energy/templates`;
+3. review generated `generators.csv`, line-length and generation-capacity
+   coverage validation, and the demand inputs under
    `data/1-processed/energy/provided`;
-4. build a PyPSA network with `build_operational_network(...)`;
+4. build and save `base.nc`, then attach demand to that network;
 5. call `EnergyModel().simulate(network, disruptions)`.
 
 ## Module map
 
 - `intake.py`: validates provided source folders and writes cleaned
-  substations, route geometry, generation layers, demand summaries and register
-  templates.
-- `network.py`: builds a fixed-capacity PyPSA network from reviewed buses,
-  lines, generators, demand and service weights.
+  substations, route geometry, generated `generators.csv`, service weights and
+  demand summaries.
+- `network.py`: builds a fixed-capacity PyPSA topology and attaches demand and
+  service weights to a saved topology for a run.
 - `network_source.py`: builds and saves `base` and `inferred` PyPSA networks.
+- `network_tables.py`: defines the human CSV schemas, writes source-specific
+  review exports and performs advisory coverage validation.
 - `model.py`: applies disruptions to a copied network, optimises supply and
   returns standard supply metrics.
 - `damage.py`: converts asset damage fractions into usable asset fractions for
@@ -104,8 +107,8 @@ Standalone run path:
   `MU_STAR_DATA_ROOT`.
 - `cli.py`: exposes the `prepare-assets`, `build-network`, `run-interruptions`
   and `prepare-inferred-distribution` command-line entry points.
-- `runner.py`: loads reviewed model inputs, runs baseline/outage simulations
-  and writes metrics, network files and unmet-demand tables.
+- `runner.py`: loads a saved PyPSA network, attaches run-time demand, runs
+  baseline/outage simulations and writes metrics and unmet-demand tables.
 
 ## Current state
 
@@ -118,10 +121,11 @@ optional supporting inputs, not the default asset source.
 
 Current interruption-model preparation produces:
 
-- 18 provisional substations;
+- 18 provided substations, with their original and route-snapped coordinates
+  retained;
 - six vector transmission-route records;
-- a power-station register template, with capacities, running costs and
-  connected substations still to be completed;
+- generated power-station records with geometry, nearest substations and CEB
+  report capacity for clearly matched station names;
 - observed monthly peak demand and annual electricity use by customer group;
 - equal demand shares between substations because no OSM/GridFinder
   distribution file has yet been added.
@@ -144,9 +148,11 @@ approach) to `data/1-processed/energy/networks/inferred-<region>.nc`. The region
 is required (any OSM/Nominatim query, e.g. `rodrigues` or `"Rodrigues, Mauritius"`)
 and OSM is only contacted with `--allow-download`; cached results are reused and
 existing outputs are not overwritten without `--overwrite`. If no power feature
-is found, the metadata marks a provisional root. The reviewed `base` topology
-network is still blocked until `lines.csv` and `generators.csv` are provided;
-interruption runs also require `demand_profile.csv`.
+is found, the metadata marks a provisional root. The `base` topology is derived
+from provided transmission routes and snapped substations; incomplete generator
+rows are retained for review but do not block the topology build. Interruption
+runs require the saved network plus `demand_profile.csv` and service weights.
+Successful builds write human review tables under `data/2-out/energy/<source>/`.
 
 ## Data stages
 
@@ -253,10 +259,10 @@ Primary interruption-model notebooks:
    `networks/<source>.nc` file and runs baseline/outage cases without
    rebuilding source-specific network inputs.
 
-The line geometry does not identify the two endpoint substations for
-each electrical circuit. The repository therefore does not convert mapped
-routes into model connections. `lines.csv` will be the model input
-once endpoint and engineering data are available from an agreed source.
+The line geometry does not provide an engineering circuit register, but it does
+provide a meaningful topology. The base builder nodes routes at intersections
+and snapped substations, labels connectors across mapped gaps of at most 75 m,
+and uses non-binding line ratings until engineering ratings are available.
 
 The current `PowerGrid.shp` contains six route records, expanded into 27 line
 parts. Only one record has a route name and voltage in its attributes. It has
@@ -375,11 +381,11 @@ automatically overwrite provided or CEB records.
 - Show the snap-distance table prominently in the intake notebook. Most points
   move less than 75 m, while `SUB_014` moves about 301 m because the source map
   is coarse.
-- Complete `lines.csv` from CEB records, identifying the endpoint
-  substations for each line or transformer.
+- Review generated topology connectors and replace proxy line ratings when CEB
+  circuit ratings become available.
 - Add voltage, circuit count and maximum power for lines and transformers.
-- Complete `generators.csv` with installed capacity, fuel or
-  technology, running cost, efficiency, status and connected substation.
+- Complete unmatched generator capacities and replace neutral VoLL dispatch
+  costs with sourced operating costs when cost analysis is required.
 - Decide the model year and document whether each input represents that year.
 - Replace equal demand shares with reviewed substation shares where evidence is
   available.
@@ -443,11 +449,12 @@ data/1-processed/energy/provided/
 
 ### Priority 4: connect preparation, model build and outage runs
 
-- The `build-network` command builds the final PyPSA network from cleaned
-  buses, lines, generators, demand and optional generation profiles.
-- The `run-interruptions` command loads a saved network with
-  `--network` / `--network-source`, with CSV rebuilding retained only as a
-  fallback.
+- The `build-network base` command derives the PyPSA topology from snapped
+  substations, provided route geometry and complete rows in generated
+  `generators.csv`; it does not attach demand.
+- The `run-interruptions` command requires a saved network with `--network` or
+  `--network-source`, then attaches demand and service weights. It does not
+  rebuild topology from `lines.csv` or `generators.csv`.
 - It runs normal operation before applying damage.
 - It can run an outage case from a disruption table.
 - It saves the built network, summary results and unmet demand by substation

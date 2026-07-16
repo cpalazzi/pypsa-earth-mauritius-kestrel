@@ -24,6 +24,10 @@ data/0-incoming/**
 data/1-processed/**
 !data/1-processed/
 !data/1-processed/README.md
+!data/1-processed/energy/
+!data/1-processed/energy/templates/
+!data/1-processed/energy/templates/generators.csv
+!data/1-processed/energy/templates/lines.csv
 data/2-out/**
 !data/2-out/
 !data/2-out/README.md

@@ -6,6 +6,7 @@ configfile: "config/energy.yaml"
 DATA_ROOT = os.environ.get("MU_STAR_DATA_ROOT", config.get("data_root", "data"))
 INCOMING_ENERGY = f"{DATA_ROOT}/0-incoming/energy/provided"
 PROCESSED_ENERGY = f"{DATA_ROOT}/1-processed/energy/provided"
+TEMPLATES_ENERGY = f"{DATA_ROOT}/1-processed/energy/templates"
 OUTPUT_ENERGY = f"{DATA_ROOT}/2-out/energy"
 NETWORKS_ENERGY = f"{DATA_ROOT}/1-processed/energy/networks"
 ENERGY_OPERATIONS = config.get("energy", {}).get("operations", {})
@@ -14,6 +15,23 @@ VALUE_OF_LOST_LOAD = ENERGY_OPERATIONS.get("value_of_lost_load_eur_per_mwh", 100
 ENERGY_INFERRED_NETWORK = config.get("energy", {}).get("inferred_network", {})
 INFERRED_NETWORK_REGION = ENERGY_INFERRED_NETWORK.get("region", "rodrigues")
 INFERRED_NETWORK_TYPE = ENERGY_INFERRED_NETWORK.get("network_type", "drive")
+ENERGY_VALIDATION = config.get("energy", {}).get("validation", {})
+CEB_LINE_LENGTH_KM = ENERGY_VALIDATION.get("ceb_transmission_length_km", 478.9)
+LINE_LENGTH_TOLERANCE = ENERGY_VALIDATION.get(
+    "line_length_tolerance_fraction", 0.35
+)
+CEB_GENERATION_CAPACITY_MW = ENERGY_VALIDATION.get(
+    "ceb_reported_installed_generation_mw", 881.56
+)
+GENERATION_CAPACITY_TOLERANCE = ENERGY_VALIDATION.get(
+    "generation_capacity_tolerance_fraction", 0.10
+)
+ENERGY_BASE_NETWORK = config.get("energy", {}).get("base_network", {})
+BASE_ROUTE_GAP_TOLERANCE_M = ENERGY_BASE_NETWORK.get("route_gap_tolerance_m", 75)
+BASE_DEFAULT_VOLTAGE_KV = ENERGY_BASE_NETWORK.get("default_voltage_kv", 66)
+BASE_TOPOLOGY_CAPACITY_MVA = ENERGY_BASE_NETWORK.get(
+    "topology_capacity_mva", 10000
+)
 
 include: "0-preprocess/energy.smk"
 include: "1-simulate/energy.smk"

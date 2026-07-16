@@ -11,9 +11,18 @@ import numpy as np
 import pandas as pd
 from shapely.ops import nearest_points
 
+from mu_star_energy.distribution import build_service_weights
+from mu_star_energy.network_tables import write_input_templates
+
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 METRIC_CRS = "EPSG:32740"
 GEOGRAPHIC_CRS = "EPSG:4326"
+GENERATOR_CAPACITY_REFERENCE = (
+    Path(__file__).parent / "resources" / "generator_capacity_reference.csv"
+)
+CEB_ANNUAL_REPORT_URL = (
+    "https://ceb.mu/files/files/publications/Annual%20Report/CEB%20AR%202023-2024.pdf"
+)
 REQUIRED_PROVIDED_FILES = (
     "power_demand/Power Demand.xlsx",
     "substation/Substation.shp",
@@ -43,7 +52,10 @@ class PreparedAssets:
     transmission_routes: Path
     generation_points: Path
     generation_areas: Path
-    generation_register_template: Path
+    generators: Path
+    service_weights: Path
+    generator_input_template: Path
+    line_input_template: Path
     monthly_peak_demand: Path
     annual_sector_demand: Path
 
@@ -170,12 +182,11 @@ def _extract_route_capacity_mw(routes: pd.DataFrame) -> pd.Series:
 def classify_generation(row: pd.Series) -> str:
     """Classify only explicit source labels; leave ambiguous assets unspecified."""
     text = " ".join(
-        _clean_label(row.get(column), "")
-        for column in ("Name", "PopupInfo", "FolderPath")
+        _clean_label(row.get(column), "") for column in ("Name", "PopupInfo", "FolderPath")
     ).lower()
     if "gamesa" in text or "wind" in text:
         return "wind"
-    if "hydro" in text:
+    if "hydro" in text or "ferney" in text:
         return "hydro"
     if "solar" in text or "sarako" in text or "landscope" in text:
         return "solar"
@@ -184,7 +195,6 @@ def classify_generation(row: pd.Series) -> str:
     thermal_tokens = (
         "power station",
         "power plant",
-        "ferney",
         "nicolay",
         "fort george",
         "saint louis",
@@ -221,9 +231,7 @@ def extract_demand_workbook(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             break
         values = [raw.iat[row_i, column] for column in month_cols]
         peak_rows.append({"year": int(year), **dict(zip(MONTHS, values, strict=True))})
-    monthly_peak = (
-        pd.DataFrame(peak_rows).set_index("year").apply(pd.to_numeric, errors="coerce")
-    )
+    monthly_peak = pd.DataFrame(peak_rows).set_index("year").apply(pd.to_numeric, errors="coerce")
 
     unit_row, _ = _find_cell(raw, r"Unit\s*:\s*GWh")
     annual_year_row = unit_row + 1
@@ -275,9 +283,7 @@ def snap_substations_to_routes(
     required_substation_columns = {"bus_id", "geometry"}
     missing_substation_columns = required_substation_columns - set(substations.columns)
     if missing_substation_columns:
-        raise ValueError(
-            f"Substations missing columns: {sorted(missing_substation_columns)}"
-        )
+        raise ValueError(f"Substations missing columns: {sorted(missing_substation_columns)}")
     required_route_columns = {"route_id", "geometry"}
     missing_route_columns = required_route_columns - set(routes.columns)
     if missing_route_columns:
@@ -286,11 +292,7 @@ def snap_substations_to_routes(
         raise ValueError("Cannot snap substations because the route layer is empty")
 
     metric_substations = substations.to_crs(METRIC_CRS).copy()
-    route_parts = (
-        routes.to_crs(METRIC_CRS)
-        .explode(index_parts=True)
-        .reset_index(drop=True)
-    )
+    route_parts = routes.to_crs(METRIC_CRS).explode(index_parts=True).reset_index(drop=True)
     route_parts = route_parts[route_parts.geometry.geom_type.eq("LineString")].copy()
     if route_parts.empty:
         raise ValueError("Cannot snap substations because the route layer has no lines")
@@ -332,6 +334,74 @@ def snap_substations_to_routes(
     return snapped
 
 
+def assign_generation_to_substations(
+    generation_sites: gpd.GeoDataFrame,
+    substations: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
+    """Assign each mapped generation site to its nearest snapped substation."""
+    if "generator_id" not in generation_sites or "geometry" not in generation_sites:
+        raise ValueError("generation_sites must contain generator_id and geometry")
+    if "bus_id" not in substations or "geometry" not in substations:
+        raise ValueError("substations must contain bus_id and geometry")
+    if substations.empty:
+        raise ValueError("Cannot assign generation without substations")
+
+    generators = generation_sites.to_crs(METRIC_CRS).copy()
+    buses = substations.to_crs(METRIC_CRS)
+    bus_ids = []
+    distances_m = []
+    for point in generators.geometry:
+        distances = buses.geometry.distance(point)
+        nearest_index = distances.idxmin()
+        bus_ids.append(str(buses.loc[nearest_index, "bus_id"]))
+        distances_m.append(float(distances.loc[nearest_index]))
+    generators["bus_id"] = bus_ids
+    generators["bus_assignment_distance_m"] = distances_m
+    return generators.to_crs(GEOGRAPHIC_CRS)
+
+
+def apply_generator_capacity_reference(
+    generation_sites: gpd.GeoDataFrame,
+    reference_path: Path = GENERATOR_CAPACITY_REFERENCE,
+) -> gpd.GeoDataFrame:
+    """Add report-backed installed capacity and a neutral VoLL dispatch cost."""
+    reference = pd.read_csv(reference_path)
+    _required = {
+        "name",
+        "output_capacity_mw",
+        "effective_capacity_mw",
+        "capacity_measure",
+        "report_period",
+        "capacity_source",
+    }
+    missing = _required - set(reference.columns)
+    if missing:
+        raise ValueError(f"generator capacity reference missing columns: {sorted(missing)}")
+
+    result = generation_sites.merge(
+        reference,
+        on="name",
+        how="left",
+        validate="many_to_one",
+    )
+    duplicate_count = result.groupby("name")["generator_id"].transform("count")
+    for column in ("output_capacity_mw", "effective_capacity_mw"):
+        result[column] = result[column] / duplicate_count
+    has_capacity = result["output_capacity_mw"].notna()
+    result["marginal_cost"] = np.where(has_capacity, 0.0, np.nan)
+    result["marginal_cost_basis"] = np.where(
+        has_capacity,
+        "equal_dispatch_proxy_for_voll",
+        pd.NA,
+    )
+    result["capacity_source_url"] = np.where(
+        has_capacity,
+        CEB_ANNUAL_REPORT_URL,
+        pd.NA,
+    )
+    return gpd.GeoDataFrame(result, geometry="geometry", crs=generation_sites.crs)
+
+
 def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     """Prepare source shapefiles and the CEB workbook for modelling."""
     input_dir = Path(input_dir)
@@ -344,9 +414,7 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     substations["name"] = substations["bus_id"]
     substations["asset_type"] = "substation"
 
-    routes = _read_gdf(input_dir / "power_transmission" / "PowerGrid.shp").reset_index(
-        drop=True
-    )
+    routes = _read_gdf(input_dir / "power_transmission" / "PowerGrid.shp").reset_index(drop=True)
     routes["route_id"] = [f"ROUTE_{index + 1:03d}" for index in routes.index]
     routes["name"] = routes["Name"].combine_first(routes["FolderPath"]).apply(_clean_label)
     routes["v_nom_kv"] = _extract_route_voltage_kv(routes)
@@ -355,16 +423,12 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     routes["length_km"] = routes.to_crs(METRIC_CRS).length / 1000
     snapped_substations = snap_substations_to_routes(substations, routes)
 
-    points = _read_gdf(input_dir / "generation_source" / "GenSource1.shp").reset_index(
-        drop=True
-    )
+    points = _read_gdf(input_dir / "generation_source" / "GenSource1.shp").reset_index(drop=True)
     points["asset_id"] = [f"GEN_POINT_{index + 1:03d}" for index in points.index]
     points["name"] = points["Name"].apply(_clean_label)
     points["asset_type"] = points.apply(classify_generation, axis=1)
 
-    areas = _read_gdf(input_dir / "generation_source" / "GenSource2.shp").reset_index(
-        drop=True
-    )
+    areas = _read_gdf(input_dir / "generation_source" / "GenSource2.shp").reset_index(drop=True)
     areas["asset_id"] = [f"GEN_AREA_{index + 1:03d}" for index in areas.index]
     areas["label"] = areas["Name"].apply(_clean_label)
     areas["category"] = areas.apply(classify_generation, axis=1)
@@ -380,16 +444,16 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
         geometry="geometry",
         crs=GEOGRAPHIC_CRS,
     ).rename(columns={"asset_id": "generator_id"})
-    generation_sites["capacity_mw"] = np.nan
+    generation_sites = apply_generator_capacity_reference(generation_sites)
     generation_sites["capacity_basis"] = "electrical_output"
     generation_sites["capacity_unit"] = "MW_e"
     generation_sites["carrier"] = generation_sites["asset_type"]
-    generation_sites["marginal_cost"] = np.nan
-    generation_sites["marginal_cost_basis"] = "electrical_output"
     generation_sites["fuel_energy_basis"] = pd.NA
-    generation_sites["status"] = "needs_validation"
-    generation_sites["bus_id"] = pd.NA
     generation_sites["source"] = "provided_geometry"
+    generation_sites = assign_generation_to_substations(
+        generation_sites,
+        snapped_substations,
+    )
     generation_sites["lon"] = generation_sites.geometry.x
     generation_sites["lat"] = generation_sites.geometry.y
 
@@ -403,9 +467,10 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
     route_path = output_dir / "transmission_routes.parquet"
     point_path = output_dir / "generation_points.parquet"
     area_path = output_dir / "generation_areas.parquet"
-    register_path = output_dir / "generation_register_template.csv"
+    generators_path = output_dir / "generators.csv"
     peak_path = output_dir / "monthly_peak_demand_mw.csv"
     annual_path = output_dir / "annual_sector_demand_gwh.csv"
+    service_weights_path = output_dir / "service_weights.csv"
 
     substations[["bus_id", "name", "asset_type", "geometry"]].to_parquet(substation_path)
     snapped_substations[
@@ -451,15 +516,18 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
             "geometry",
         ]
     ].to_parquet(route_path)
-    points[
-        ["asset_id", "name", "asset_type", "PopupInfo", "geometry"]
-    ].to_parquet(point_path)
-    areas[
-        ["asset_id", "label", "category", "area_m2", "is_named", "geometry"]
-    ].to_parquet(area_path)
-    generation_sites.drop(columns="geometry").to_csv(register_path, index=False)
+    points[["asset_id", "name", "asset_type", "PopupInfo", "geometry"]].to_parquet(point_path)
+    areas[["asset_id", "label", "category", "area_m2", "is_named", "geometry"]].to_parquet(
+        area_path
+    )
+    generation_sites.drop(columns="geometry").to_csv(generators_path, index=False)
     monthly_peak.to_csv(peak_path)
     annual_demand.to_csv(annual_path, index=False)
+    build_service_weights(snapped_substations).to_csv(
+        service_weights_path,
+        index=False,
+    )
+    templates = write_input_templates(output_dir.parent / "templates")
 
     return PreparedAssets(
         substations=substation_path,
@@ -468,7 +536,10 @@ def prepare_provided_data(input_dir: Path, output_dir: Path) -> PreparedAssets:
         transmission_routes=route_path,
         generation_points=point_path,
         generation_areas=area_path,
-        generation_register_template=register_path,
+        generators=generators_path,
+        service_weights=service_weights_path,
+        generator_input_template=templates.generators,
+        line_input_template=templates.lines,
         monthly_peak_demand=peak_path,
         annual_sector_demand=annual_path,
     )

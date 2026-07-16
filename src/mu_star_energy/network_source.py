@@ -15,19 +15,26 @@ from shapely.geometry import Point
 from shapely.ops import unary_union
 
 import mu_star_energy.osm as osm
+from mu_star_energy.base_topology import derive_base_topology
 from mu_star_energy.distribution_network import (
     METRIC_CRS,
     build_inferred_distribution_graph,
     write_inferred_distribution_tables,
 )
 from mu_star_energy.network import assert_fixed_capacity, build_topology_network
+from mu_star_energy.network_tables import (
+    CEB_REPORTED_INSTALLED_GENERATION_MW,
+    CEB_TRANSMISSION_LENGTH_KM,
+    GENERATOR_REQUIRED_COLUMNS,
+    validate_model_tables,
+    write_model_tables,
+)
 from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
 
 BASE_REQUIRED_FILES = (
     "snapped_substations.parquet",
-    "lines.csv",
+    "transmission_routes.parquet",
     "generators.csv",
-    "service_weights.csv",
 )
 
 
@@ -38,6 +45,9 @@ class NetworkBuildOutputs:
     inferred_nodes: Path | None = None
     inferred_edges: Path | None = None
     inferred_metadata: Path | None = None
+    generators: Path | None = None
+    lines: Path | None = None
+    validation: Path | None = None
 
 
 def _coerce_vector_fetch_result(result: object) -> gpd.GeoDataFrame | None:
@@ -71,25 +81,29 @@ def _missing_files(input_dir: Path, names: tuple[str, ...]) -> list[Path]:
     return [input_dir / name for name in names if not (input_dir / name).exists()]
 
 
-def _load_reviewed_inputs(input_dir: Path) -> tuple[
+def _load_reviewed_inputs(
+    input_dir: Path,
+) -> tuple[
     gpd.GeoDataFrame,
-    pd.DataFrame,
-    pd.DataFrame,
+    gpd.GeoDataFrame,
     pd.DataFrame,
 ]:
     missing = _missing_files(input_dir, BASE_REQUIRED_FILES)
     if missing:
         formatted = "\n".join(f"- {path}" for path in missing)
         raise FileNotFoundError(
-            "Cannot build the reviewed base network until these files exist:\n"
-            f"{formatted}"
+            f"Cannot build the base network until these prepared files exist:\n{formatted}"
         )
 
     buses = gpd.read_parquet(input_dir / "snapped_substations.parquet")
-    lines = pd.read_csv(input_dir / "lines.csv")
+    routes = gpd.read_parquet(input_dir / "transmission_routes.parquet")
     generators = pd.read_csv(input_dir / "generators.csv")
-    service_weights = pd.read_csv(input_dir / "service_weights.csv")
-    return buses, lines, generators, service_weights
+    return buses, routes, generators
+
+
+def _complete_generators(generators: pd.DataFrame) -> pd.DataFrame:
+    complete = generators[list(GENERATOR_REQUIRED_COLUMNS)].notna().all(axis=1)
+    return generators.loc[complete].copy()
 
 
 def _write_network(path: Path, network: pypsa.Network) -> Path:
@@ -110,9 +124,55 @@ def _build_base_network(
     input_dir: Path,
     network_path: Path,
     metadata_path: Path,
+    table_output_dir: Path | None,
+    reference_line_length_km: float,
+    line_length_tolerance_fraction: float,
+    reference_generation_capacity_mw: float,
+    generation_capacity_tolerance_fraction: float,
+    route_gap_tolerance_m: float,
+    default_voltage_kv: float,
+    topology_capacity_mva: float,
 ) -> NetworkBuildOutputs:
-    buses, lines, generators, _service_weights = _load_reviewed_inputs(input_dir)
-    network = build_topology_network(buses, lines, generators)
+    snapped_substations, transmission_routes, generators = _load_reviewed_inputs(input_dir)
+    topology = derive_base_topology(
+        snapped_substations,
+        transmission_routes,
+        route_gap_tolerance_m=route_gap_tolerance_m,
+        default_voltage_kv=default_voltage_kv,
+        topology_capacity_mva=topology_capacity_mva,
+    )
+    buses = topology.buses
+    lines = topology.lines
+    table_outputs = None
+    if table_output_dir is None:
+        validation = validate_model_tables(
+            buses,
+            lines,
+            generators,
+            source="base",
+            reference_line_length_km=reference_line_length_km,
+            line_length_tolerance_fraction=line_length_tolerance_fraction,
+            reference_generation_capacity_mw=reference_generation_capacity_mw,
+            generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),
+            allow_incomplete_generators=True,
+        )
+    else:
+        table_outputs, validation = write_model_tables(
+            buses,
+            lines,
+            generators,
+            table_output_dir,
+            source="base",
+            reference_line_length_km=reference_line_length_km,
+            line_length_tolerance_fraction=line_length_tolerance_fraction,
+            reference_generation_capacity_mw=reference_generation_capacity_mw,
+            generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),
+            allow_incomplete_generators=True,
+        )
+    if validation["errors"]:
+        raise ValueError("Invalid base network tables:\n- " + "\n- ".join(validation["errors"]))
+    network_generators = _complete_generators(generators)
+    network = build_topology_network(buses, lines, network_generators)
     _write_network(network_path, network)
     _write_metadata(
         metadata_path,
@@ -125,11 +185,32 @@ def _build_base_network(
             "buses": len(network.buses),
             "lines": len(network.lines),
             "generators": len(network.generators),
+            "generator_records": len(generators),
+            "generator_output_capacity_mw": float(network.generators.p_nom.sum()),
             "loads": 0,
             "inferred": False,
+            "derived": True,
+            "stage": "topology_only",
+            "substations": topology.substation_count,
+            "junctions": topology.junction_count,
+            "connected_components": topology.connected_components,
+            "route_gap_connectors": topology.route_gap_count,
+            "route_gap_length_km": topology.route_gap_length_km,
+            "route_gap_tolerance_m": route_gap_tolerance_m,
+            "default_voltage_kv": default_voltage_kv,
+            "topology_capacity_mva": topology_capacity_mva,
+            "human_tables": str(table_output_dir) if table_output_dir else None,
+            "validation_status": validation["status"],
+            "validation_warnings": validation["warnings"],
         },
     )
-    return NetworkBuildOutputs(network=network_path, metadata=metadata_path)
+    return NetworkBuildOutputs(
+        network=network_path,
+        metadata=metadata_path,
+        generators=table_outputs.generators if table_outputs else None,
+        lines=table_outputs.lines if table_outputs else None,
+        validation=table_outputs.validation if table_outputs else None,
+    )
 
 
 def provisional_demand_profile(input_dir: Path) -> pd.DataFrame:
@@ -167,7 +248,7 @@ def _empty_generators() -> pd.DataFrame:
             "generator_id",
             "bus_id",
             "carrier",
-            "capacity_mw",
+            "output_capacity_mw",
             "capacity_basis",
             "marginal_cost",
         ]
@@ -303,8 +384,7 @@ def _normalise_power_substations(
         substations = substations.set_crs("EPSG:4326")
     if "bus_id" not in substations.columns:
         substations["bus_id"] = [
-            f"{region.upper()}_SUB_{number:03d}"
-            for number in range(1, len(substations) + 1)
+            f"{region.upper()}_SUB_{number:03d}" for number in range(1, len(substations) + 1)
         ]
     metric = substations.to_crs(METRIC_CRS)
     geometry = metric.geometry
@@ -375,6 +455,8 @@ def _build_inferred_network(
     max_anchor_distance_m: float,
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
+    table_output_dir: Path | None,
+    line_length_tolerance_fraction: float,
 ) -> NetworkBuildOutputs:
     provisional_root = False
     roads_result = osm.fetch_osm_roads(
@@ -401,9 +483,7 @@ def _build_inferred_network(
         gridfinder_distribution_lines = _read_optional_vector(gridfinder_lines_path)
     else:
         gridfinder_lines_path = (
-            Path(gridfinder_lines)
-            if isinstance(gridfinder_lines, (str, Path))
-            else None
+            Path(gridfinder_lines) if isinstance(gridfinder_lines, (str, Path)) else None
         )
         gridfinder_distribution_lines = _coerce_optional_vector(gridfinder_lines)
 
@@ -429,7 +509,28 @@ def _build_inferred_network(
     service_weights_path_out = table_dir / "service_weights.csv"
     service_weights.to_csv(service_weights_path_out, index=False)
 
-    network = build_topology_network(buses, lines, _empty_generators())
+    generators = _empty_generators()
+    table_outputs = None
+    if table_output_dir is None:
+        validation = validate_model_tables(
+            buses,
+            lines,
+            generators,
+            source="inferred",
+            line_length_tolerance_fraction=line_length_tolerance_fraction,
+        )
+    else:
+        table_outputs, validation = write_model_tables(
+            buses,
+            lines,
+            generators,
+            table_output_dir,
+            source="inferred",
+            line_length_tolerance_fraction=line_length_tolerance_fraction,
+        )
+    if validation["errors"]:
+        raise ValueError("Invalid inferred network tables:\n- " + "\n- ".join(validation["errors"]))
+    network = build_topology_network(buses, lines, generators)
     anchored, unanchored = _substation_anchor_counts(graph)
     _write_network(network_path, network)
     _write_metadata(
@@ -449,9 +550,7 @@ def _build_inferred_network(
             "inferred": True,
             "stage": "connectivity_only",
             "service_weights": str(service_weights_path_out),
-            "road_edges": len(osm_distribution_lines)
-            if osm_distribution_lines is not None
-            else 0,
+            "road_edges": len(osm_distribution_lines) if osm_distribution_lines is not None else 0,
             "gridfinder_edges": len(gridfinder_distribution_lines)
             if gridfinder_distribution_lines is not None
             else 0,
@@ -464,6 +563,9 @@ def _build_inferred_network(
             "inferred_voltage_kv": inferred_voltage_kv,
             "inferred_capacity_mva": inferred_capacity_mva,
             "max_anchor_distance_m": max_anchor_distance_m,
+            "human_tables": str(table_output_dir) if table_output_dir else None,
+            "validation_status": validation["status"],
+            "validation_warnings": validation["warnings"],
         },
     )
     return NetworkBuildOutputs(
@@ -472,6 +574,9 @@ def _build_inferred_network(
         inferred_nodes=inferred_tables.nodes,
         inferred_edges=inferred_tables.edges,
         inferred_metadata=inferred_tables.metadata,
+        generators=table_outputs.generators if table_outputs else None,
+        lines=table_outputs.lines if table_outputs else None,
+        validation=table_outputs.validation if table_outputs else None,
     )
 
 
@@ -489,16 +594,27 @@ def build_network(
     max_anchor_distance_m: float = 500,
     inferred_voltage_kv: float = 11,
     inferred_capacity_mva: float = 5,
+    export_root: Path | None = None,
+    reference_line_length_km: float = CEB_TRANSMISSION_LENGTH_KM,
+    line_length_tolerance_fraction: float = 0.35,
+    reference_generation_capacity_mw: float = CEB_REPORTED_INSTALLED_GENERATION_MW,
+    generation_capacity_tolerance_fraction: float = 0.10,
+    base_route_gap_tolerance_m: float = 75,
+    base_default_voltage_kv: float = 66,
+    base_topology_capacity_mva: float = 10_000,
 ) -> NetworkBuildOutputs:
     """Build and save a named network-source artifact.
 
-    ``source="base"`` uses the reviewed inputs in ``input_dir``. ``source="inferred"``
+    ``source="base"`` derives a topology from prepared provided-data geometry.
+    ``source="inferred"``
     requires a ``region`` (any OSM/Nominatim query, e.g. "Rodrigues, Mauritius")
     and builds the topology from that region's OSM roads plus an optional local
     GridFinder line layer. OSM power features are used as substation roots when
     cached; otherwise a provisional road-network root is created. Existing
     outputs are not overwritten unless ``overwrite`` is set, and OSM data is
-    only downloaded when ``allow_download`` is True.
+    only downloaded when ``allow_download`` is True. When ``export_root`` is
+    supplied, the human-readable ``generators.csv``, ``lines.csv`` and
+    validation report are written below a source-named subdirectory.
     """
     source = source.lower()
     if source not in {"base", "inferred"}:
@@ -521,6 +637,7 @@ def build_network(
         output_stem = "base"
     network_path = output_dir / f"{output_stem}.nc"
     metadata_path = output_dir / f"{output_stem}_metadata.json"
+    table_output_dir = Path(export_root) / output_stem if export_root else None
 
     if network_path.exists() and not overwrite:
         raise FileExistsError(
@@ -533,6 +650,14 @@ def build_network(
             input_dir=input_dir,
             network_path=network_path,
             metadata_path=metadata_path,
+            table_output_dir=table_output_dir,
+            reference_line_length_km=reference_line_length_km,
+            line_length_tolerance_fraction=line_length_tolerance_fraction,
+            reference_generation_capacity_mw=reference_generation_capacity_mw,
+            generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),
+            route_gap_tolerance_m=base_route_gap_tolerance_m,
+            default_voltage_kv=base_default_voltage_kv,
+            topology_capacity_mva=base_topology_capacity_mva,
         )
     return _build_inferred_network(
         input_dir=input_dir,
@@ -547,4 +672,6 @@ def build_network(
         max_anchor_distance_m=max_anchor_distance_m,
         inferred_voltage_kv=inferred_voltage_kv,
         inferred_capacity_mva=inferred_capacity_mva,
+        table_output_dir=table_output_dir,
+        line_length_tolerance_fraction=line_length_tolerance_fraction,
     )

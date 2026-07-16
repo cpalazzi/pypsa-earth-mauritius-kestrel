@@ -6,6 +6,9 @@ from shapely.geometry import LineString, Point
 from mu_star_energy.intake import (
     _extract_route_capacity_mw,
     _extract_route_voltage_kv,
+    apply_generator_capacity_reference,
+    assign_generation_to_substations,
+    classify_generation,
     snap_substations_to_routes,
     validate_provided_inputs,
 )
@@ -73,3 +76,45 @@ def test_route_voltage_and_capacity_are_read_from_explicit_source_fields_or_labe
     assert pd.isna(voltage.iloc[2])
     assert capacity.iloc[:2].isna().all()
     assert capacity.iloc[2] == 40.0
+
+
+def test_ferney_is_classified_as_hydro_from_the_provided_label():
+    row = pd.Series({"Name": "Ferney Power Station"})
+
+    assert classify_generation(row) == "hydro"
+
+
+def test_generation_sites_are_assigned_to_nearest_substation():
+    generators = gpd.GeoDataFrame(
+        {"generator_id": ["G1"], "geometry": [Point(57.501, -20.2)]},
+        crs="EPSG:4326",
+    )
+    substations = gpd.GeoDataFrame(
+        {
+            "bus_id": ["A", "B"],
+            "geometry": [Point(57.5, -20.2), Point(57.6, -20.2)],
+        },
+        crs="EPSG:4326",
+    )
+
+    result = assign_generation_to_substations(generators, substations)
+
+    assert result.loc[0, "bus_id"] == "A"
+    assert result.loc[0, "bus_assignment_distance_m"] < 200
+
+
+def test_report_capacity_is_split_across_duplicate_site_geometries():
+    generators = gpd.GeoDataFrame(
+        {
+            "generator_id": ["G1", "G2"],
+            "name": ["Sarako", "Sarako"],
+            "geometry": [Point(57.42, -20.26), Point(57.43, -20.26)],
+        },
+        crs="EPSG:4326",
+    )
+
+    result = apply_generator_capacity_reference(generators)
+
+    assert result["output_capacity_mw"].sum() == pytest.approx(15.19)
+    assert result["marginal_cost"].eq(0.0).all()
+    assert result["marginal_cost_basis"].eq("equal_dispatch_proxy_for_voll").all()

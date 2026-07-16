@@ -20,29 +20,27 @@ def _write_base_inputs(input_dir):
         crs="EPSG:4326",
     )
     buses.to_parquet(input_dir / "snapped_substations.parquet")
-    pd.DataFrame(
+    gpd.GeoDataFrame(
         {
-            "line_id": ["AB"],
-            "bus0": ["A"],
-            "bus1": ["B"],
+            "route_id": ["R1"],
             "v_nom_kv": [66],
-            "length_km": [10.0],
-            "s_nom_mva": [100.0],
-        }
-    ).to_csv(input_dir / "lines.csv", index=False)
+            "geometry": [LineString([(57.5, -20.2), (57.6, -20.2)])],
+        },
+        crs="EPSG:4326",
+    ).to_parquet(input_dir / "transmission_routes.parquet")
     pd.DataFrame(
         {
             "generator_id": ["plant"],
             "bus_id": ["A"],
             "carrier": ["thermal"],
-            "capacity_mw": [100.0],
+            "output_capacity_mw": [100.0],
             "capacity_basis": ["electrical_output"],
             "marginal_cost": [10.0],
         }
     ).to_csv(input_dir / "generators.csv", index=False)
-    pd.DataFrame(
-        {"bus_id": ["A", "B"], "service_weight": [0.0, 1.0]}
-    ).to_csv(input_dir / "service_weights.csv", index=False)
+    pd.DataFrame({"bus_id": ["A", "B"], "service_weight": [0.0, 1.0]}).to_csv(
+        input_dir / "service_weights.csv", index=False
+    )
 
 
 def test_build_base_network_exports_network_files(tmp_path):
@@ -50,7 +48,13 @@ def test_build_base_network_exports_network_files(tmp_path):
     output_dir = tmp_path / "processed" / "energy" / "networks"
     _write_base_inputs(input_dir)
 
-    outputs = build_network("base", input_dir=input_dir, output_dir=output_dir)
+    export_root = tmp_path / "out" / "energy"
+    outputs = build_network(
+        "base",
+        input_dir=input_dir,
+        output_dir=output_dir,
+        export_root=export_root,
+    )
 
     metadata = json.loads(outputs.metadata.read_text())
     assert outputs.network.is_file()
@@ -61,12 +65,21 @@ def test_build_base_network_exports_network_files(tmp_path):
     assert metadata["has_demand"] is False
     assert metadata["loads"] == 0
     assert metadata["inferred"] is False
+    assert metadata["derived"] is True
+    assert metadata["substations"] == 2
+    assert outputs.generators == export_root / "base" / "generators.csv"
+    assert outputs.lines == export_root / "base" / "lines.csv"
+    assert outputs.validation == export_root / "base" / "validation.json"
+    assert pd.read_csv(outputs.generators).loc[0, "output_capacity_mw"] == 100.0
+    validation = json.loads(outputs.validation.read_text())
+    assert validation["status"] == "valid_with_warnings"
+    assert validation["totals"]["line_length_km"] > 10.0
     network = pypsa.Network(outputs.network)
     assert network.loads.empty
 
 
-def test_build_base_network_requires_reviewed_inputs(tmp_path):
-    with pytest.raises(FileNotFoundError, match="lines.csv"):
+def test_build_base_network_requires_prepared_inputs(tmp_path):
+    with pytest.raises(FileNotFoundError, match="transmission_routes.parquet"):
         build_network(
             "base",
             input_dir=tmp_path / "missing",
@@ -90,9 +103,7 @@ def test_build_network_refuses_to_overwrite(tmp_path):
     build_network("base", input_dir=input_dir, output_dir=output_dir)
     with pytest.raises(FileExistsError, match="already exists"):
         build_network("base", input_dir=input_dir, output_dir=output_dir)
-    outputs = build_network(
-        "base", input_dir=input_dir, output_dir=output_dir, overwrite=True
-    )
+    outputs = build_network("base", input_dir=input_dir, output_dir=output_dir, overwrite=True)
     assert outputs.network.is_file()
 
 
@@ -131,6 +142,7 @@ def test_build_inferred_network_for_region_uses_osm_fixtures(tmp_path, monkeypat
         input_dir=tmp_path / "inputs",
         output_dir=output_dir,
         max_anchor_distance_m=100,
+        export_root=tmp_path / "out" / "energy",
     )
 
     metadata = json.loads(outputs.metadata.read_text())
@@ -146,6 +158,15 @@ def test_build_inferred_network_for_region_uses_osm_fixtures(tmp_path, monkeypat
     assert metadata["has_demand"] is False
     assert network.loads.empty
     assert len(network.lines) >= 1
+    assert outputs.generators.parent.name == "inferred-rodrigues"
+    assert pd.read_csv(outputs.generators).empty
+    inferred_validation = json.loads(outputs.validation.read_text())
+    assert inferred_validation["status"] == "valid_with_warnings"
+    assert any("cannot supply demand" in warning for warning in inferred_validation["warnings"])
+    assert (
+        inferred_validation["checks"]["line_length_against_published_ceb_total"]["status"]
+        == "not_applicable"
+    )
 
 
 def test_build_inferred_uses_gridfinder_and_cached_roads_without_power(
@@ -197,7 +218,5 @@ def test_build_inferred_uses_gridfinder_and_cached_roads_without_power(
     assert metadata["road_edges"] == 1
     assert metadata["gridfinder_edges"] == 1
     assert metadata["provisional_root"] is True
-    assert any(
-        str(line_id).startswith("gridfinder_") for line_id in network.lines.index
-    )
+    assert any(str(line_id).startswith("gridfinder_") for line_id in network.lines.index)
     assert any(str(line_id).startswith("osm_") for line_id in network.lines.index)

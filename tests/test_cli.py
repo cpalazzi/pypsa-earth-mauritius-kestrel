@@ -17,6 +17,9 @@ def test_run_interruptions_network_selector_is_unambiguous():
             ]
         )
 
+    with pytest.raises(SystemExit):
+        parser.parse_args(["run-interruptions"])
+
 
 def test_build_network_accepts_inferred_region_selector():
     parser = build_parser()

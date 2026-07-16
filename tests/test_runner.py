@@ -18,23 +18,20 @@ def _write_reviewed_inputs(input_dir):
         crs="EPSG:4326",
     )
     buses.to_parquet(input_dir / "snapped_substations.parquet")
-    pd.DataFrame(
+    gpd.GeoDataFrame(
         {
-            "line_id": ["AB"],
-            "bus0": ["A"],
-            "bus1": ["B"],
+            "route_id": ["R1"],
             "v_nom_kv": [66],
-            "length_km": [10.0],
-            "s_nom_mva": [100.0],
-            "geometry": [LineString([(57.5, -20.2), (57.6, -20.2)]).wkt],
-        }
-    ).to_csv(input_dir / "lines.csv", index=False)
+            "geometry": [LineString([(57.5, -20.2), (57.6, -20.2)])],
+        },
+        crs="EPSG:4326",
+    ).to_parquet(input_dir / "transmission_routes.parquet")
     pd.DataFrame(
         {
             "generator_id": ["plant"],
             "bus_id": ["A"],
             "carrier": ["thermal"],
-            "capacity_mw": [50.0],
+            "output_capacity_mw": [50.0],
             "capacity_basis": ["electrical_output"],
             "marginal_cost": [10.0],
         }
@@ -45,9 +42,9 @@ def _write_reviewed_inputs(input_dir):
             "demand_mw": [40.0, 40.0],
         }
     ).to_csv(input_dir / "demand_profile.csv", index=False)
-    pd.DataFrame(
-        {"bus_id": ["A", "B"], "service_weight": [0.0, 1.0]}
-    ).to_csv(input_dir / "service_weights.csv", index=False)
+    pd.DataFrame({"bus_id": ["A", "B"], "service_weight": [0.0, 1.0]}).to_csv(
+        input_dir / "service_weights.csv", index=False
+    )
     pd.DataFrame(
         {
             "component": ["Generator"],
@@ -74,12 +71,15 @@ def test_read_time_series_csv_uses_first_column_as_timestamp(tmp_path):
 
 def test_run_interruption_analysis_writes_baseline_and_outage_outputs(tmp_path):
     input_dir = tmp_path / "processed" / "energy" / "provided"
+    network_dir = tmp_path / "processed" / "energy" / "networks"
     output_dir = tmp_path / "out" / "energy"
     _write_reviewed_inputs(input_dir)
+    network_outputs = build_network("base", input_dir=input_dir, output_dir=network_dir)
 
     outputs = run_interruption_analysis(
         input_dir,
         output_dir,
+        network_path=network_outputs.network,
         disruptions_path=input_dir / "disruptions.csv",
         export_networks=False,
     )

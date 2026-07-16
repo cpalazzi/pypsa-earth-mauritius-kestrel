@@ -47,9 +47,7 @@ def _bus_voltage_kv(
             connected_voltages,
             explicit_voltage,
         ):
-            raise ValueError(
-                f"Bus {bus_id} voltage does not match its connected line voltages"
-            )
+            raise ValueError(f"Bus {bus_id} voltage does not match its connected line voltages")
         return explicit_voltage
     if connected_voltages.size == 1:
         return float(connected_voltages[0])
@@ -74,10 +72,16 @@ def build_topology_network(
     The model cannot build extra capacity. Missing line limits or power-station
     capacities cause a clear error rather than being estimated by the model.
 
-    Generator ``capacity_mw`` is electrical output capacity and is passed
-    directly to ``Generator.p_nom``. Line ``s_nom_mva`` is an apparent-power
-    rating. This function does not convert capacities to or from an LHV basis.
+    Generator ``output_capacity_mw`` is electrical output capacity and is
+    passed directly to ``Generator.p_nom``. Line ``s_nom_mva`` is an
+    apparent-power rating. This function does not convert capacities to or
+    from an LHV basis.
     """
+    if "output_capacity_mw" not in generators and "capacity_mw" in generators:
+        raise ValueError(
+            "generators.capacity_mw has been renamed to output_capacity_mw; "
+            "rename the column before building the network"
+        )
     _require_columns(buses, {"bus_id", "geometry"}, "buses")
     _require_columns(
         lines,
@@ -93,18 +97,22 @@ def build_topology_network(
     )
     _require_columns(
         generators,
-        {"generator_id", "bus_id", "carrier", "capacity_mw", "marginal_cost"},
+        {
+            "generator_id",
+            "bus_id",
+            "carrier",
+            "output_capacity_mw",
+            "marginal_cost",
+        },
         "generators",
     )
 
     if lines["s_nom_mva"].isna().any():
+        raise ValueError("Maximum line power is incomplete; populate s_nom_mva before simulation")
+    if generators["output_capacity_mw"].isna().any():
         raise ValueError(
-            "Maximum line power is incomplete; populate s_nom_mva before simulation"
-        )
-    if generators["capacity_mw"].isna().any():
-        raise ValueError(
-            "Power-station maximum output is incomplete; populate capacity_mw "
-            "before simulation"
+            "Power-station maximum output is incomplete; populate "
+            "output_capacity_mw before simulation"
         )
     if "capacity_basis" in generators:
         invalid_basis = ~generators["capacity_basis"].astype(str).str.lower().eq(
@@ -117,8 +125,7 @@ def build_topology_network(
             )
     if generators["marginal_cost"].isna().any():
         raise ValueError(
-            "Power-station running costs are incomplete; populate marginal_cost "
-            "before simulation"
+            "Power-station running costs are incomplete; populate marginal_cost before simulation"
         )
     if generators["bus_id"].isna().any():
         raise ValueError("Power-station substation assignments are incomplete")
@@ -157,16 +164,19 @@ def build_topology_network(
         carrier = str(row["carrier"])
         if carrier not in network.carriers.index:
             network.add("Carrier", carrier)
+        efficiency = row.get("efficiency", 1.0)
+        if pd.isna(efficiency):
+            efficiency = 1.0
         # Generator.p_nom limits electrical output at the connected bus.
         network.add(
             "Generator",
             str(row["generator_id"]),
             bus=str(row["bus_id"]),
             carrier=carrier,
-            p_nom=float(row["capacity_mw"]),
+            p_nom=float(row["output_capacity_mw"]),
             p_nom_extendable=False,
             marginal_cost=float(row["marginal_cost"]),
-            efficiency=float(row.get("efficiency", 1.0)),
+            efficiency=float(efficiency),
         )
 
     assert_fixed_capacity(network)
@@ -185,8 +195,7 @@ def attach_demand(
     _require_columns(service_weights, {"bus_id", "service_weight"}, "service_weights")
 
     if not network.loads.empty or (
-        "carrier" in network.generators
-        and network.generators.carrier.eq("load_shedding").any()
+        "carrier" in network.generators and network.generators.carrier.eq("load_shedding").any()
     ):
         raise ValueError("Demand is already attached to this network")
     if demand_profile.empty:
@@ -207,10 +216,7 @@ def attach_demand(
         )
         if generator_availability.isna().any().any():
             raise ValueError("Generator availability contains missing values")
-        if (
-            (generator_availability < 0).any().any()
-            or (generator_availability > 1).any().any()
-        ):
+        if (generator_availability < 0).any().any() or (generator_availability > 1).any().any():
             raise ValueError("Generator availability values must lie between zero and one")
 
     run_network = network.copy()
@@ -218,9 +224,11 @@ def attach_demand(
     run_network.set_snapshots(demand_profile.index)
     run_network.snapshot_weightings.loc[:, :] = time_step_hours
 
-    physical_generator_ids = run_network.generators.index[
-        ~run_network.generators.carrier.eq("load_shedding")
-    ].astype(str).tolist()
+    physical_generator_ids = (
+        run_network.generators.index[~run_network.generators.carrier.eq("load_shedding")]
+        .astype(str)
+        .tolist()
+    )
     if generator_availability is not None:
         availability = generator_availability.reindex(columns=physical_generator_ids)
         if availability.isna().any().any():
@@ -232,11 +240,19 @@ def attach_demand(
         run_network.generators_t.p_max_pu.loc[:, physical_generator_ids] = availability
 
     bus_ids = run_network.buses.index.astype(str)
-    weights = service_weights.set_index("bus_id")["service_weight"].reindex(bus_ids)
+    if service_weights["bus_id"].astype(str).duplicated().any():
+        raise ValueError("Demand shares contain duplicate bus_id values")
+    supplied_bus_ids = set(service_weights["bus_id"].astype(str))
+    unknown_bus_ids = sorted(supplied_bus_ids - set(bus_ids))
+    if unknown_bus_ids:
+        raise ValueError(f"Demand shares reference unknown buses: {unknown_bus_ids}")
+    weights = (
+        service_weights.assign(bus_id=service_weights["bus_id"].astype(str))
+        .set_index("bus_id")["service_weight"]
+        .reindex(bus_ids, fill_value=0.0)
+    )
     if weights.isna().any() or not np.isclose(weights.sum(), 1.0):
-        raise ValueError(
-            "Demand shares must cover every substation (bus_id) and add to one"
-        )
+        raise ValueError("Demand shares must contain valid bus_id values and add to one")
 
     if "demand_mw" in demand_profile.columns:
         total_demand = demand_profile["demand_mw"]
@@ -251,9 +267,10 @@ def attach_demand(
                 "per substation (bus_id)"
             )
 
+    demand_bus_ids = demand_by_bus.columns[demand_by_bus.abs().max(axis=0).gt(0)].astype(str)
     if "load_shedding" not in run_network.carriers.index:
         run_network.add("Carrier", "load_shedding")
-    for bus_id in bus_ids:
+    for bus_id in demand_bus_ids:
         load_id = f"load::{bus_id}"
         shed_id = f"load_shedding::{bus_id}"
         run_network.add("Load", load_id, bus=bus_id)

@@ -10,7 +10,7 @@ This is an operational model of a fixed set of assets.
 ## Two models in this repo
 
 Two separate models sit side by side:
-the development workflow for the mu-star energy component, and PyPSA-Earth for reference. 
+the development workflow for the mu-star energy component, and PyPSA-Earth for reference.
 
 **Interruption model (primary)** — the mu-star `energy` component: code in
 `src/mu_star_energy/`, notebooks in
@@ -18,7 +18,7 @@ the development workflow for the mu-star energy component, and PyPSA-Earth for r
 provided system and tests asset outages:
 
 ```text
-source data -> reviewed tables -> PyPSA network -> outage cases -> unserved energy
+source evidence -> prepared inputs -> PyPSA network -> outage cases -> unserved energy
 ```
 
 The standard call is:
@@ -64,7 +64,8 @@ the stages sorted in a file browser.
 
 ## Glossary
 
-- **Bus** — a connection point; here, a substation.
+- **Bus** — an electrical connection point; here, a snapped substation or a
+  route junction.
 - **Dispatch** — how much each station produces in a time step.
 - **Snapshot** — one model time step (e.g. an hour).
 - **Service weight** — a substation's share of total demand (shares sum to one).
@@ -72,8 +73,11 @@ the stages sorted in a file browser.
 
 ## Capacity conventions
 
-- `capacity_mw` is electrical output in `MW_e` and maps to PyPSA
-  `Generator.p_nom` (not fuel input; no LHV conversion).
+- `output_capacity_mw` is a generator's electrical output in `MW_e`. The
+  builder maps it to PyPSA `Generator.p_nom`; users do not need PyPSA column
+  names in their CSVs.
+- A future conversion `Link` input should use `input_capacity_mw`, because
+  PyPSA `Link.p_nom` is rated at its input (`bus0`).
 - `marginal_cost` is per `MWh_e`. For a thermal fuel priced per `MWh_fuel`
   (LHV), convert first — `fuel price / efficiency + variable operating cost` —
   and record the basis in `fuel_energy_basis`.
@@ -111,8 +115,10 @@ reuses the same `.venv`.
    .venv/bin/python -m mu_star_energy.cli prepare-assets
    ```
 
-   This writes cleaned tables to `data/1-processed/`. Don't edit generated
-   Parquet files by hand.
+   This writes cleaned tables, including generated `generators.csv`, to
+   `data/1-processed/energy/provided/` and header-only interchange schemas to
+   `data/1-processed/energy/templates/`. Don't edit generated Parquet files by
+   hand.
 
 3. **Run the notebooks in order:** `00-data-review/` (clean and inspect source
    data), `01-build-network/` (build a saved network), `02-interruption-analysis/` (run
@@ -124,10 +130,18 @@ reuses the same `.venv`.
    .venv/bin/python -m mu_star_energy.cli build-network base
    ```
 
-   `base` builds from the reviewed inputs below and fails rather than guess
-   missing values. `build-network inferred --region rodrigues` instead derives a
+   `base` derives lines and junctions from the provided transmission routes and
+   snapped substations, and includes generated generator rows whose required
+   values are complete. It writes the canonical PyPSA
+   network under `data/1-processed/energy/networks/` and reviewable copies of
+   the human CSVs plus `validation.json` under `data/2-out/energy/base/`.
+   Incomplete generator records remain in the review CSV and produce warnings;
+   they do not block the topology. `build-network inferred
+   --region rodrigues` instead derives a
    topology-only network from a region's OSM roads, saved as
-   `inferred-<region>.nc`, for testing before reviewed data exists. The region
+   `inferred-<region>.nc`, with matching human CSVs under
+   `data/2-out/energy/inferred-<region>/`, for testing before reviewed data
+   exists. The region
    is required and can be any OSM/Nominatim query; add `--allow-download` the
    first time to fetch the roads from OpenStreetMap. A local GridFinder layer is
    used if present, and a provisional root stands in when no OSM substations are
@@ -145,24 +159,48 @@ reuses the same `.venv`.
    Omit `--disruptions` for a baseline-only run. Results and a `demand_summary.csv`
    are written under `data/2-out/energy/`. Equivalently, call
    `EnergyModel().simulate(network, disruptions)` in Python.
+   This stage reads `base.nc`; it does not rebuild the network from
+   `lines.csv` or `generators.csv`.
 
-### Reviewed inputs for `base`
+### Generated inputs for `base`
 
-Place these under `data/1-processed/energy/provided/`:
+The base builder consumes prepared source evidence rather than requiring a
+manually created `lines.csv`:
 
-- `lines.csv` — `line_id`, `bus0`, `bus1`, `v_nom_kv`, `length_km`, `s_nom_mva`.
-  Must come from CEB records: `PowerGrid.shp` geometry has no line endpoints or
-  ratings, so connections are never inferred from route proximity.
-- `generators.csv` — `generator_id`, `bus_id`, `carrier`, `capacity_mw`,
-  `marginal_cost` (start from the generated register template).
+- `snapped_substations.parquet` contains all provided substations aligned to
+  the mapped transmission routes;
+- `transmission_routes.parquet` supplies the route geometry. Breaks of at most
+  75 m are connected explicitly and labelled `derived_route_gap`; other route
+  ends are not guessed;
+- `generators.csv` is generated from mapped station sites, nearest-substation
+  assignment and clearly matched installed capacities in the
+  [CEB Annual Report 2023-2024](https://ceb.mu/files/files/publications/Annual%20Report/CEB%20AR%202023-2024.pdf).
+  Its `marginal_cost=0` values are a neutral VoLL dispatch proxy, not operating
+  cost estimates. Rows without sourced capacity remain visible but are omitted
+  from the saved network;
 - `service_weights.csv` — each substation's share of demand (shares sum to one).
+  Preparation writes an explicitly labelled equal-share fallback when no
+  distribution proxy is available.
 - `demand_profile.csv` — required when running interruptions, not when building
   the topology network. Use a timestamp column plus either one `demand_mw`
   column (split across substations by `service_weights.csv`) or one column per
   `bus_id`. Regular half-hourly, hourly or three-hourly spacing.
 
-The provided workbook only provides monthly peaks and annual sector totals,
-so a dated `demand_profile.csv` must come from CEB or another documented source.
+The provided workbook only provides monthly peaks and annual sector totals.
+`01_demand_settings.ipynb` therefore creates a clearly labelled one-snapshot
+provisional profile for a pipeline run; replace it with dated CEB or other
+documented demand before interpreting reliability results.
+Generated human-readable `lines.csv` and `generators.csv` snapshots are written
+under `data/2-out/energy/base/`. The advisory base validation also compares
+modelled total line length with the
+[CEB published 66 kV total](https://ceb.mu/our-activities/transmission-and-distribution/grid-infrastructure)
+(442 km overhead plus 36.9 km underground). It
+warns rather than fails because mapped route length and circuit length may use
+different bases. It separately compares modelled generator output capacity
+with the 881.56 MW installed-capacity grand total reported on pp. 50-51 of the
+[CEB Annual Report 2023-2024](https://ceb.mu/files/files/publications/Annual%20Report/CEB%20AR%202023-2024.pdf).
+That check reports the coverage fraction and notes that the CEB total includes
+CEB, IPP, SSDG and MSDG generation.
 
 ## Distribution network
 
