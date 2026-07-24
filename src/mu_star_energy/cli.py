@@ -10,13 +10,19 @@ from pathlib import Path
 import geopandas as gpd
 
 from mu_star_energy.distribution_network import (
+    DEFAULT_MAX_ANCHOR_DISTANCE_M,
     build_inferred_distribution_graph,
     write_inferred_distribution_tables,
 )
 from mu_star_energy.intake import prepare_provided_data
 from mu_star_energy.network_source import build_network
-from mu_star_energy.osm import REGIONS
-from mu_star_energy.paths import incoming_energy_dir, output_energy_dir, processed_energy_dir
+from mu_star_energy.osm import REGIONS, REGION_GROUPS
+from mu_star_energy.paths import (
+    incoming_energy_dir,
+    network_output_dir,
+    output_energy_dir,
+    processed_energy_dir,
+)
 from mu_star_energy.runner import run_interruption_analysis
 
 
@@ -28,7 +34,11 @@ def _prepare_assets(args: argparse.Namespace) -> None:
 def _run_interruptions(args: argparse.Namespace) -> None:
     network_path = args.network
     if args.network_source is not None:
-        network_path = processed_energy_dir() / "networks" / f"{args.network_source}.nc"
+        network_path = (
+            network_output_dir()
+            / args.network_source
+            / f"{args.network_source}.nc"
+        )
     outputs = run_interruption_analysis(
         Path(args.input_dir),
         Path(args.output_dir),
@@ -61,12 +71,16 @@ def _build_network(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
         allow_download=args.allow_download,
         network_type=args.network_type,
-        gridfinder_lines=args.gridfinder_lines,
+        nightlight_aoi_path=args.nightlight_aoi,
+        nightlights_path=args.nightlights,
+        nightlight_threshold=args.nightlight_threshold,
+        nightlight_support_distance_m=args.nightlight_support_distance_m,
         max_anchor_distance_m=args.max_anchor_distance_m,
         inferred_voltage_kv=args.inferred_voltage_kv,
         inferred_capacity_mva=args.inferred_capacity_mva,
         export_root=args.export_root,
         reference_line_length_km=args.reference_line_length_km,
+        inferred_reference_line_length_km=args.inferred_reference_line_length_km,
         line_length_tolerance_fraction=args.line_length_tolerance_fraction,
         reference_generation_capacity_mw=args.reference_generation_capacity_mw,
         generation_capacity_tolerance_fraction=(args.generation_capacity_tolerance_fraction),
@@ -99,15 +113,15 @@ def _prepare_inferred_distribution(args: argparse.Namespace) -> None:
             "Pass --enable-inferred-distribution to build the labelled inferred layer."
         )
     substations = gpd.read_parquet(args.substations)
-    gridfinder_lines = _read_optional_vector(args.gridfinder_lines)
+    precomputed_lines = _read_optional_vector(args.precomputed_lines)
     osm_distribution_lines = _read_optional_vector(args.osm_distribution_lines)
-    if gridfinder_lines is None and osm_distribution_lines is None:
+    if precomputed_lines is None and osm_distribution_lines is None:
         raise FileNotFoundError(
-            "No GridFinder or OSM distribution line file was found for the inferred layer"
+            "No precomputed or OSM distribution line file was found for the inferred layer"
         )
     graph = build_inferred_distribution_graph(
         substations,
-        gridfinder_lines=gridfinder_lines,
+        precomputed_lines=precomputed_lines,
         osm_distribution_lines=osm_distribution_lines,
         max_anchor_distance_m=args.max_anchor_distance_m,
     )
@@ -125,40 +139,52 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.set_defaults(func=_prepare_assets)
 
     build = subparsers.add_parser("build-network")
-    build.add_argument("source", choices=["base", "inferred"])
+    build.add_argument(
+        "source",
+        choices=["base", "inferred", "inferred-osm", "inferred-data"],
+    )
     build.add_argument(
         "--region",
         default=None,
         help=(
-            "Required for source=inferred: any OSM/Nominatim query (e.g. "
-            "'Rodrigues, Mauritius'). Shortcuts: " + ", ".join(sorted(REGIONS)) + "."
+            "Required for inferred sources: any OSM/Nominatim query (e.g. "
+            "'Rodrigues, Mauritius'). Shortcuts: "
+            + ", ".join(sorted({*REGIONS, *REGION_GROUPS}))
+            + "."
         ),
     )
     build.add_argument(
         "--input-dir",
         type=Path,
         default=processed_energy_dir() / "provided",
-        help="Folder containing reviewed/intermediate network inputs (source=base).",
+        help=(
+            "Folder containing reviewed/intermediate inputs "
+            "(used by base and inferred-data)."
+        ),
     )
     build.add_argument(
         "--output-dir",
         type=Path,
-        default=processed_energy_dir() / "networks",
-        help="Folder where saved network files are written.",
+        default=network_output_dir(),
+        help="Root folder where one subdirectory per named network result is written.",
     )
     build.add_argument(
         "--export-root",
         type=Path,
-        default=output_energy_dir(),
+        default=network_output_dir(),
         help=(
             "Root for source-specific human CSVs and validation reports "
-            "(default: data/2-out/energy)."
+            "(default: data/2-out/energy/networks, alongside the .nc)."
         ),
     )
     build.add_argument(
         "--output-name",
         default=None,
-        help="Output file stem (default: 'base', or 'inferred-<region>').",
+        help=(
+            "Result-directory and file stem "
+            "(default: 'base', 'inferred-osm-<region>', or "
+            "'inferred-data-<region>')."
+        ),
     )
     build.add_argument(
         "--overwrite",
@@ -168,26 +194,52 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--allow-download",
         action="store_true",
-        help="Permit fetching OSM data when it is not already cached (source=inferred).",
+        help="Permit fetching the OSM road envelope and power features when uncached.",
     )
     build.add_argument(
         "--network-type",
-        default="drive",
-        help="OSM road detail for source=inferred: 'drive' (roads) or 'all' (every way).",
-    )
-    build.add_argument(
-        "--gridfinder-lines",
-        type=Path,
-        default=None,
+        default="all",
         help=(
-            "Optional GridFinder line layer for source=inferred. If omitted, "
-            "data/0-incoming/energy/gridfinder/grid.gpkg is used when present."
+            "OSM detail retained around VIIRS nightlight targets. Use "
+            "'all' (default)."
         ),
     )
-    build.add_argument("--max-anchor-distance-m", type=float, default=500)
+    build.add_argument(
+        "--nightlight-aoi",
+        type=Path,
+        default=None,
+        help="Polygon GeoParquet defining the nightlight analysis area.",
+    )
+    build.add_argument(
+        "--nightlights",
+        type=Path,
+        default=None,
+        help="Reviewed single-band VIIRS raster used to identify connection targets.",
+    )
+    build.add_argument("--nightlight-threshold", type=float, default=0.1)
+    build.add_argument(
+        "--nightlight-support-distance-m",
+        type=float,
+        default=1000,
+        help=(
+            "Retain OSM roads within this distance of a VIIRS nightlight "
+            "target (default: 1000 m)."
+        ),
+    )
+    build.add_argument(
+        "--max-anchor-distance-m",
+        type=float,
+        default=DEFAULT_MAX_ANCHOR_DISTANCE_M,
+    )
     build.add_argument("--inferred-voltage-kv", type=float, default=11)
     build.add_argument("--inferred-capacity-mva", type=float, default=5)
     build.add_argument("--reference-line-length-km", type=float, default=478.9)
+    build.add_argument(
+        "--inferred-reference-line-length-km",
+        type=float,
+        default=10_492.2,
+        help="Published CEB whole-network circuit length used to validate source=inferred.",
+    )
     build.add_argument("--line-length-tolerance-fraction", type=float, default=0.35)
     build.add_argument(
         "--reference-generation-capacity-mw",
@@ -228,7 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--network-source",
         choices=["base", "inferred"],
         default=None,
-        help="Load data/1-processed/energy/networks/<source>.nc.",
+        help="Load data/2-out/energy/networks/<source>.nc.",
     )
     run.add_argument(
         "--disruptions",
@@ -255,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     inferred.add_argument(
         "--enable-inferred-distribution",
         action="store_true",
-        help="Required safety flag; keeps GridFinder/OSM feeders outside the baseline.",
+        help="Required safety flag; keeps inferred/OSM feeders outside the baseline.",
     )
     inferred.add_argument(
         "--substations",
@@ -263,9 +315,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=processed_energy_dir() / "provided" / "snapped_substations.parquet",
     )
     inferred.add_argument(
-        "--gridfinder-lines",
+        "--precomputed-lines",
         type=Path,
-        default=incoming_energy_dir() / "gridfinder" / "grid.gpkg",
+        default=incoming_energy_dir() / "inferred" / "distribution_lines.gpkg",
     )
     inferred.add_argument(
         "--osm-distribution-lines",
@@ -277,7 +329,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=processed_energy_dir() / "inferred_distribution",
     )
-    inferred.add_argument("--max-anchor-distance-m", type=float, default=500)
+    inferred.add_argument(
+        "--max-anchor-distance-m",
+        type=float,
+        default=DEFAULT_MAX_ANCHOR_DISTANCE_M,
+    )
     inferred.set_defaults(func=_prepare_inferred_distribution)
     return parser
 

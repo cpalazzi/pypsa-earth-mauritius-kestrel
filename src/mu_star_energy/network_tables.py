@@ -54,8 +54,13 @@ LINE_TEMPLATE_COLUMNS = (
 # CEB reports 442 km of overhead and 36.9 km of underground 66 kV lines.
 CEB_TRANSMISSION_LENGTH_KM = 478.9
 CEB_TRANSMISSION_LENGTH_SOURCE = (
-    "https://ceb.mu/our-activities/transmission-and-distribution/grid-infrastructure"
+    "https://ceb.mu/fact-sheets/grid-infrastructure"
 )
+# The same CEB fact sheet reports 10,492.2 circuit-km across transmission,
+# medium-voltage distribution and low-voltage distribution. This is the
+# appropriate published comparator for the island-wide inferred network.
+CEB_TOTAL_NETWORK_LENGTH_KM = 10_492.2
+CEB_TOTAL_NETWORK_LENGTH_SOURCE = CEB_TRANSMISSION_LENGTH_SOURCE
 # CEB Annual Report 2023-2024, pp. 50-51: grand total installed capacity,
 # including CEB, IPP, SSDG and MSDG generation.
 CEB_REPORTED_INSTALLED_GENERATION_MW = 881.56
@@ -168,6 +173,10 @@ def validate_model_tables(
     *,
     source: str,
     reference_line_length_km: float | None = None,
+    reference_line_length_scope: str | None = None,
+    reference_line_length_source: str | None = None,
+    reference_line_length_note: str | None = None,
+    reference_line_length_sources: tuple[str, ...] | None = None,
     line_length_tolerance_fraction: float = 0.35,
     reference_generation_capacity_mw: float | None = None,
     generation_capacity_tolerance_fraction: float = 0.10,
@@ -257,6 +266,20 @@ def validate_model_tables(
                     errors.append(f"{label}.{column} references unknown buses: {missing_bus_ids}")
 
     total_line_length_km = float(line_lengths.sum()) if not line_lengths.empty else 0.0
+    comparison_line_lengths = line_lengths
+    if reference_line_length_sources is not None:
+        if "source" not in lines:
+            errors.append(
+                "lines.source is required when reference_line_length_sources is configured"
+            )
+            comparison_line_lengths = pd.Series(dtype="float64")
+        else:
+            comparison_line_lengths = line_lengths.loc[
+                lines["source"].astype(str).isin(reference_line_length_sources)
+            ]
+    comparison_line_length_km = (
+        float(comparison_line_lengths.sum()) if not comparison_line_lengths.empty else 0.0
+    )
     total_recorded_generator_output_capacity_mw = (
         round(float(generator_capacities.sum()), 9) if not generator_capacities.empty else 0.0
     )
@@ -272,25 +295,36 @@ def validate_model_tables(
             "reason": "No like-for-like published length is configured for this source.",
         }
     else:
-        relative_difference = abs(total_line_length_km - reference_line_length_km) / float(
-            reference_line_length_km
-        )
+        relative_difference = abs(
+            comparison_line_length_km - reference_line_length_km
+        ) / float(reference_line_length_km)
         within_tolerance = relative_difference <= line_length_tolerance_fraction
         line_length_check = {
             "status": "pass" if within_tolerance else "warning",
-            "model_total_km": total_line_length_km,
+            "model_total_km": comparison_line_length_km,
+            "model_all_lines_total_km": total_line_length_km,
+            "included_model_sources": list(reference_line_length_sources)
+            if reference_line_length_sources is not None
+            else "all",
             "reference_total_km": float(reference_line_length_km),
             "relative_difference": relative_difference,
             "tolerance_fraction": line_length_tolerance_fraction,
-            "reference_source": CEB_TRANSMISSION_LENGTH_SOURCE,
-            "comparison_note": (
+            "reference_scope": reference_line_length_scope
+            or "published line-length reference",
+            "reference_source": reference_line_length_source
+            or CEB_TRANSMISSION_LENGTH_SOURCE,
+            "comparison_note": reference_line_length_note
+            or (
                 "CEB reports 442 km overhead plus 36.9 km underground at 66 kV; "
                 "the model total may use a different route/circuit-length basis."
             ),
         }
         if not within_tolerance:
+            comparison_label = (
+                reference_line_length_scope or "the published line-length reference"
+            )
             warnings.append(
-                "Model line length differs from the published CEB 66 kV total by "
+                f"Model line length differs from {comparison_label} by "
                 f"{relative_difference:.1%}; review coverage and length basis."
             )
 
@@ -361,6 +395,10 @@ def write_model_tables(
     *,
     source: str,
     reference_line_length_km: float | None = None,
+    reference_line_length_scope: str | None = None,
+    reference_line_length_source: str | None = None,
+    reference_line_length_note: str | None = None,
+    reference_line_length_sources: tuple[str, ...] | None = None,
     line_length_tolerance_fraction: float = 0.35,
     reference_generation_capacity_mw: float | None = None,
     generation_capacity_tolerance_fraction: float = 0.10,
@@ -381,6 +419,10 @@ def write_model_tables(
         generators,
         source=source,
         reference_line_length_km=reference_line_length_km,
+        reference_line_length_scope=reference_line_length_scope,
+        reference_line_length_source=reference_line_length_source,
+        reference_line_length_note=reference_line_length_note,
+        reference_line_length_sources=reference_line_length_sources,
         line_length_tolerance_fraction=line_length_tolerance_fraction,
         reference_generation_capacity_mw=reference_generation_capacity_mw,
         generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),

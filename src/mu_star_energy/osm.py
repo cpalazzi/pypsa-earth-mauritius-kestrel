@@ -2,8 +2,9 @@
 
 OSM roads are a proxy for where the low-voltage network runs; they are not
 confirmed engineering data, so any network built from them stays labelled as
-inferred. Fetching needs internet (the OSM Overpass API), so results are cached
-under ``data/0-incoming/energy/osm/<region>/roads.parquet``.
+inferred. Fetching needs internet (the OSM Overpass API), so driving-network
+results are cached under ``data/0-incoming/energy/osm/<region>/roads.parquet``;
+other network types use a type-specific file in the same folder.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 
 from mu_star_energy.paths import incoming_energy_dir
 
@@ -32,6 +34,10 @@ REGIONS: dict[str, str] = {
     "st_brandon": "Saint Brandon, Mauritius",
 }
 
+REGION_GROUPS: dict[str, tuple[str, ...]] = {
+    "mauritius-rodrigues": ("mauritius", "rodrigues"),
+}
+
 GEOGRAPHIC_CRS = "EPSG:4326"
 
 
@@ -41,10 +47,19 @@ def region_query(region: str) -> str:
     return REGIONS.get(region.strip().lower(), region.strip())
 
 
+def region_members(region: str) -> tuple[str, ...]:
+    """Return the independently fetched places represented by ``region``."""
+    normalised = region.strip().lower()
+    return REGION_GROUPS.get(normalised, (region.strip(),))
+
+
 def region_slug(region: str) -> str:
     """Filesystem-safe key for cache folders and output names, e.g.
     "Rodrigues, Mauritius" -> "rodrigues_mauritius"."""
-    slug = re.sub(r"[^a-z0-9]+", "_", region.strip().lower()).strip("_")
+    normalised = region.strip().lower()
+    if normalised in REGION_GROUPS:
+        return normalised
+    slug = re.sub(r"[^a-z0-9]+", "_", normalised).strip("_")
     return slug or "region"
 
 
@@ -61,8 +76,9 @@ class OSMRoadsOutput:
     edge_count: int
 
 
-def osm_roads_path(region: str) -> Path:
-    return incoming_energy_dir() / "osm" / region_slug(region) / "roads.parquet"
+def osm_roads_path(region: str, network_type: str = "drive") -> Path:
+    suffix = "" if network_type == "drive" else f"-{region_slug(network_type)}"
+    return incoming_energy_dir() / "osm" / region_slug(region) / f"roads{suffix}.parquet"
 
 
 def osm_power_path(region: str) -> Path:
@@ -105,9 +121,30 @@ def fetch_osm_roads(
     region = _require_region(region)
     slug = region_slug(region)
 
-    path = osm_roads_path(region)
+    path = osm_roads_path(region, network_type)
     if path.exists() and not overwrite:
         return OSMRoadsOutput(region, path, len(gpd.read_parquet(path)))
+    members = region_members(region)
+    if len(members) > 1:
+        member_frames = [
+            gpd.read_parquet(
+                fetch_osm_roads(
+                    member,
+                    network_type=network_type,
+                    overwrite=overwrite,
+                    allow_download=allow_download,
+                ).path
+            )
+            for member in members
+        ]
+        roads = gpd.GeoDataFrame(
+            pd.concat(member_frames, ignore_index=True),
+            geometry="geometry",
+            crs=GEOGRAPHIC_CRS,
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        roads.to_parquet(path)
+        return OSMRoadsOutput(region, path, len(roads))
     if not allow_download:
         raise OSMDownloadRequired(
             f"OSM roads for {region!r} are not cached at {path}. "
@@ -151,6 +188,32 @@ def fetch_osm_power_features(
     slug = region_slug(region)
     path = osm_power_path(region)
     if path.exists() and not overwrite:
+        return path
+    members = region_members(region)
+    if len(members) > 1:
+        member_frames = []
+        for member in members:
+            try:
+                member_path = fetch_osm_power_features(
+                    member,
+                    overwrite=overwrite,
+                    allow_download=allow_download,
+                )
+            except OSMDownloadRequired:
+                continue
+            member_frames.append(gpd.read_parquet(member_path))
+        if not member_frames:
+            raise OSMDownloadRequired(
+                f"OSM power features for every member of {region!r} are missing. "
+                "Set allow_download=True to fetch them."
+            )
+        power = gpd.GeoDataFrame(
+            pd.concat(member_frames, ignore_index=True),
+            geometry="geometry",
+            crs=GEOGRAPHIC_CRS,
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        power.to_parquet(path)
         return path
     if not allow_download:
         raise OSMDownloadRequired(

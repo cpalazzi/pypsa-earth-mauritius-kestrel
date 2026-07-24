@@ -9,13 +9,14 @@ Run these folders in order after placing provided data under
 `data/0-incoming` or an equivalent `MU_STAR_DATA_ROOT`:
 
 1. `00-data-review/` cleans and reviews source data. It does not build a model.
-2. `01-build-network/` chooses `source = "base"` or `"inferred"` and writes a saved
-   PyPSA network under `data/1-processed/energy/networks/`.
+2. `01-build-network/` builds or loads one selected named network, validates
+   its NetCDF/GeoParquet bundle, and saves static and interactive maps.
 3. `02-interruption-analysis/` loads a saved network and runs baseline/outage cases.
 
 Line capacities and generator details for `source = "base"` come from reviewed
-inputs, not from estimates. The `inferred` source is explicitly labelled and
-kept separate from the reviewed base network.
+inputs, not from estimates. `inferred-osm` and `inferred-data` are explicitly
+labelled nightlight/OSM topology products and remain separate from the reviewed
+base network.
 
 For delivery into `nismod/mu-star`, this notebook sequence prepares the inputs
 for the `energy` component model. The public call remains

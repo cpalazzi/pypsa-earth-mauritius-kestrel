@@ -1,6 +1,6 @@
 """Estimate how total demand may be shared between substations.
 
-GridFinder and OSM distribution lines are used only to estimate service areas
+Precomputed and OSM distribution lines are used only to estimate service areas
 and the share of demand served by each substation. They are not confirmed
 engineering data and are not added to the electrical network calculation.
 """
@@ -17,14 +17,14 @@ METRIC_CRS = "EPSG:32740"
 def build_service_weights(
     substations: gpd.GeoDataFrame,
     *,
-    gridfinder_lines: gpd.GeoDataFrame | None = None,
+    precomputed_lines: gpd.GeoDataFrame | None = None,
     osm_distribution_lines: gpd.GeoDataFrame | None = None,
 ) -> pd.DataFrame:
     """Use mapped line length to estimate each substation's share of demand."""
     buses = substations.to_crs(METRIC_CRS)
     sources: list[gpd.GeoDataFrame] = []
     for name, layer in (
-        ("gridfinder", gridfinder_lines),
+        ("precomputed", precomputed_lines),
         ("osm", osm_distribution_lines),
     ):
         if layer is None or layer.empty:
@@ -40,7 +40,7 @@ def build_service_weights(
         return pd.DataFrame(
             {
                 "bus_id": buses["bus_id"],
-                "gridfinder_km": 0.0,
+                "precomputed_km": 0.0,
                 "osm_km": 0.0,
                 "service_weight": weight,
                 "method": "equal_no_distribution_proxy",
@@ -66,10 +66,10 @@ def build_service_weights(
         .reindex(buses["bus_id"])
         .fillna(0.0)
     )
-    for column in ("gridfinder", "osm"):
+    for column in ("precomputed", "osm"):
         if column not in lengths:
             lengths[column] = 0.0
-    total = lengths[["gridfinder", "osm"]].sum(axis=1)
+    total = lengths[["precomputed", "osm"]].sum(axis=1)
     if total.sum() == 0:
         weights = pd.Series(1 / len(total), index=total.index)
     else:
@@ -77,7 +77,7 @@ def build_service_weights(
     return pd.DataFrame(
         {
             "bus_id": lengths.index,
-            "gridfinder_km": lengths["gridfinder"].values,
+            "precomputed_km": lengths["precomputed"].values,
             "osm_km": lengths["osm"].values,
             "service_weight": weights.values,
             "method": "distribution_line_length_proxy",

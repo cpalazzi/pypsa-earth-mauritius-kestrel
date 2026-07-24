@@ -11,30 +11,67 @@ import geopandas as gpd
 import networkx as nx
 import pandas as pd
 import pypsa
-from shapely.geometry import Point
-from shapely.ops import unary_union
+from shapely.geometry import LineString, Point
+from shapely.ops import nearest_points, unary_union
 
 import mu_star_energy.osm as osm
-from mu_star_energy.base_topology import derive_base_topology
+from mu_star_energy.base_topology import (
+    CEB_SUBSTATION_NAMES,
+    DerivedBaseTopology,
+    derive_base_topology,
+)
 from mu_star_energy.distribution_network import (
-    METRIC_CRS,
+    DEFAULT_MAX_ANCHOR_DISTANCE_M,
     build_inferred_distribution_graph,
     write_inferred_distribution_tables,
 )
+from mu_star_energy.nightlight_targets import build_nightlight_targets
 from mu_star_energy.network import assert_fixed_capacity, build_topology_network
 from mu_star_energy.network_tables import (
     CEB_REPORTED_INSTALLED_GENERATION_MW,
+    CEB_TOTAL_NETWORK_LENGTH_KM,
+    CEB_TOTAL_NETWORK_LENGTH_SOURCE,
     CEB_TRANSMISSION_LENGTH_KM,
+    CEB_TRANSMISSION_LENGTH_SOURCE,
     GENERATOR_REQUIRED_COLUMNS,
     validate_model_tables,
     write_model_tables,
 )
-from mu_star_energy.paths import incoming_energy_dir, processed_energy_dir
+from mu_star_energy.paths import incoming_energy_dir, network_output_dir, processed_energy_dir
+from mu_star_energy.spatial_export import (
+    spatial_export_paths,
+    write_network_geoparquet,
+)
 
 BASE_REQUIRED_FILES = (
     "snapped_substations.parquet",
     "transmission_routes.parquet",
     "generators.csv",
+)
+REVIEWED_POWER_REQUIRED_FILES = (
+    "snapped_substations.parquet",
+    "generators.csv",
+)
+BASE_METHODOLOGY = "ceb-routed-topology-v3"
+INFERRED_OSM_METHODOLOGY = "nightlight-roads-osm-power-v1"
+INFERRED_DATA_METHODOLOGY = "nightlight-roads-reviewed-power-v1"
+DEFAULT_NIGHTLIGHT_SUPPORT_DISTANCE_M = 1_000.0
+
+BASE_LINE_LENGTH_SCOPE = "CEB 66 kV transmission circuit length"
+BASE_LINE_LENGTH_NOTE = (
+    "CEB reports 442 km overhead plus 36.9 km underground at 66 kV. "
+    "The routed base model is a geographic corridor model and may not retain "
+    "every parallel circuit represented by the published circuit-km total."
+)
+INFERRED_LINE_LENGTH_SCOPE = (
+    "CEB total transmission, medium-voltage and low-voltage circuit length"
+)
+INFERRED_LINE_LENGTH_NOTE = (
+    "CEB reports 10,492.2 km across overhead and underground transmission, "
+    "medium-voltage distribution and low-voltage distribution. This check "
+    "compares that total directly with the nightlight-supported OSM road "
+    "subnetwork plus the reviewed CEB backbone where available. Geographic "
+    "road length and electrical circuit-km remain different quantities."
 )
 
 
@@ -42,6 +79,9 @@ BASE_REQUIRED_FILES = (
 class NetworkBuildOutputs:
     network: Path
     metadata: Path
+    spatial_nodes: Path | None = None
+    spatial_edges: Path | None = None
+    spatial_manifest: Path | None = None
     inferred_nodes: Path | None = None
     inferred_edges: Path | None = None
     inferred_metadata: Path | None = None
@@ -59,6 +99,11 @@ def _coerce_vector_fetch_result(result: object) -> gpd.GeoDataFrame | None:
     return _read_optional_vector(Path(path))
 
 
+def _fetch_result_path(result: object) -> str | None:
+    path = getattr(result, "path", result)
+    return str(path) if isinstance(path, (str, Path)) else None
+
+
 def _coerce_optional_vector(
     value: gpd.GeoDataFrame | str | Path | None,
 ) -> gpd.GeoDataFrame | None:
@@ -72,7 +117,7 @@ def _coerce_optional_vector(
 def _read_optional_vector(path: Path | None) -> gpd.GeoDataFrame | None:
     if path is None or not path.exists():
         return None
-    if path.suffix.lower() == ".parquet":
+    if path.suffix.lower() in {".parquet", ".geoparquet"}:
         return gpd.read_parquet(path)
     return gpd.read_file(path)
 
@@ -119,6 +164,49 @@ def _write_metadata(path: Path, metadata: dict[str, object]) -> Path:
     return path
 
 
+def _ceb_topology_validation(topology: DerivedBaseTopology) -> dict[str, object]:
+    """Check the CEB-map closures that can be resolved in the supplied vectors."""
+    required_ids = set(CEB_SUBSTATION_NAMES)
+    available_ids = set(topology.buses["bus_id"].astype(str))
+    if not required_ids <= available_ids:
+        return {
+            "status": "not_applicable",
+            "reason": "The input is not the complete 18-substation CEB Mauritius dataset.",
+        }
+
+    graph = nx.MultiGraph(
+        topology.lines[["bus0", "bus1"]].itertuples(index=False, name=None)
+    )
+    retained_route_parts = set(
+        topology.lines["source_route_part_id"].dropna().astype(str)
+    )
+    checks = {
+        "six_meaningful_cycles": topology.meaningful_cycle_count >= 6,
+        "amaury_three_way_junction": len(graph["SUB_004"]) >= 3,
+        "la_chaumiere_through_connection": len(graph["SUB_010"]) >= 2,
+        "ebene_through_connection": len(graph["SUB_011"]) >= 2,
+        "ebene_wooton_route_retained": "ROUTE_001_PART_008" in retained_route_parts,
+        "la_chaumiere_henrietta_route_retained": (
+            "ROUTE_001_PART_012" in retained_route_parts
+        ),
+        "parallel_source_route_retained": topology.parallel_edge_count >= 1,
+        "operating_voltage_is_66_kv": topology.lines["v_nom_kv"].eq(66).all(),
+    }
+    checks = {name: bool(passed) for name, passed in checks.items()}
+    failed = [name for name, passed in checks.items() if not passed]
+    return {
+        "status": "pass" if not failed else "warning",
+        "reference": "provided CEB 2025 network map",
+        "checks": checks,
+        "failed_checks": failed,
+        "voltage_note": (
+            "The CEB map's blue 132 kV construction class operates at 66 kV. "
+            "The vectors do not retain enough style data to assign that design "
+            "class per circuit, so PyPSA v_nom remains the operating 66 kV."
+        ),
+    }
+
+
 def _build_base_network(
     *,
     input_dir: Path,
@@ -143,6 +231,7 @@ def _build_base_network(
     )
     buses = topology.buses
     lines = topology.lines
+    ceb_topology_validation = _ceb_topology_validation(topology)
     table_outputs = None
     if table_output_dir is None:
         validation = validate_model_tables(
@@ -151,6 +240,9 @@ def _build_base_network(
             generators,
             source="base",
             reference_line_length_km=reference_line_length_km,
+            reference_line_length_scope=BASE_LINE_LENGTH_SCOPE,
+            reference_line_length_source=CEB_TRANSMISSION_LENGTH_SOURCE,
+            reference_line_length_note=BASE_LINE_LENGTH_NOTE,
             line_length_tolerance_fraction=line_length_tolerance_fraction,
             reference_generation_capacity_mw=reference_generation_capacity_mw,
             generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),
@@ -164,6 +256,9 @@ def _build_base_network(
             table_output_dir,
             source="base",
             reference_line_length_km=reference_line_length_km,
+            reference_line_length_scope=BASE_LINE_LENGTH_SCOPE,
+            reference_line_length_source=CEB_TRANSMISSION_LENGTH_SOURCE,
+            reference_line_length_note=BASE_LINE_LENGTH_NOTE,
             line_length_tolerance_fraction=line_length_tolerance_fraction,
             reference_generation_capacity_mw=reference_generation_capacity_mw,
             generation_capacity_tolerance_fraction=(generation_capacity_tolerance_fraction),
@@ -174,12 +269,22 @@ def _build_base_network(
     network_generators = _complete_generators(generators)
     network = build_topology_network(buses, lines, network_generators)
     _write_network(network_path, network)
+    spatial_dir = network_path.parent / "geoparquet"
+    spatial_outputs = spatial_export_paths(
+        spatial_dir,
+        network_id=network_path.stem,
+    )
     _write_metadata(
         metadata_path,
         {
             "source": "base",
+            "methodology": BASE_METHODOLOGY,
+            "line_geometry": "routed_wkt",
             "input_dir": str(input_dir),
             "network": str(network_path),
+            "spatial_nodes": str(spatial_outputs.nodes),
+            "spatial_edges": str(spatial_outputs.edges),
+            "spatial_manifest": str(spatial_outputs.manifest),
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -197,16 +302,48 @@ def _build_base_network(
             "route_gap_connectors": topology.route_gap_count,
             "route_gap_length_km": topology.route_gap_length_km,
             "route_gap_tolerance_m": route_gap_tolerance_m,
+            "cycle_rank": topology.cycle_rank,
+            "meaningful_cycle_count": topology.meaningful_cycle_count,
+            "parallel_edge_count": topology.parallel_edge_count,
+            "source_route_length_km": topology.source_route_length_km,
+            "retained_source_length_km": topology.retained_source_length_km,
+            "retained_source_fraction": (
+                topology.retained_source_length_km / topology.source_route_length_km
+            ),
+            "ceb_topology_validation": ceb_topology_validation,
             "default_voltage_kv": default_voltage_kv,
             "topology_capacity_mva": topology_capacity_mva,
+            "model_line_length_km": validation["totals"]["line_length_km"],
+            "line_length_validation": validation["checks"][
+                "line_length_against_published_ceb_total"
+            ],
             "human_tables": str(table_output_dir) if table_output_dir else None,
             "validation_status": validation["status"],
             "validation_warnings": validation["warnings"],
         },
     )
+    spatial_outputs = write_network_geoparquet(
+        buses,
+        lines,
+        spatial_dir,
+        network_id=network_path.stem,
+        network_source="base",
+        methodology=BASE_METHODOLOGY,
+        source_network_path=network_path,
+        source_metadata_path=metadata_path,
+        default_region="mauritius",
+        operational_ready=True,
+        publish_voltage=True,
+        publish_capacity=False,
+        electrical_values_basis="reviewed_voltage_non_binding_capacity",
+        stage="topology_only",
+    )
     return NetworkBuildOutputs(
         network=network_path,
         metadata=metadata_path,
+        spatial_nodes=spatial_outputs.nodes,
+        spatial_edges=spatial_outputs.edges,
+        spatial_manifest=spatial_outputs.manifest,
         generators=table_outputs.generators if table_outputs else None,
         lines=table_outputs.lines if table_outputs else None,
         validation=table_outputs.validation if table_outputs else None,
@@ -260,15 +397,21 @@ def _node_bus_frame(graph: nx.Graph) -> gpd.GeoDataFrame:
         {
             "bus_id": node,
             "kind": attrs.get("kind"),
+            "asset_id": attrs.get("asset_id"),
+            "is_root": bool(attrs.get("is_root", False)),
             "inferred": bool(attrs.get("inferred", False)),
             "source": attrs.get("source", "reviewed_substation"),
+            "region": attrs.get("region"),
+            "provisional_root": bool(attrs.get("provisional_root", False)),
+            "anchor_status": attrs.get("anchor_status"),
+            "anchor_distance_m": attrs.get("anchor_distance_m"),
             "v_nom_kv": attrs.get("v_nom_kv"),
             "geometry": Point(float(attrs["x"]), float(attrs["y"])),
         }
         for node, attrs in graph.nodes(data=True)
         if "x" in attrs and "y" in attrs
     ]
-    return gpd.GeoDataFrame(rows, geometry="geometry", crs=METRIC_CRS).to_crs("EPSG:4326")
+    return gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
 
 
 def _graph_line_frame(
@@ -286,6 +429,7 @@ def _graph_line_frame(
         "s_nom_mva",
         "inferred",
         "source",
+        "region",
         "stage",
         "geometry",
     ]
@@ -294,6 +438,15 @@ def _graph_line_frame(
         if bus0 == bus1:
             continue
         node0 = graph.nodes[bus0]
+        node1 = graph.nodes[bus1]
+        geometry = attrs.get("geometry")
+        if geometry is None or geometry.geom_type != "LineString":
+            geometry = LineString(
+                [
+                    (float(node0["x"]), float(node0["y"])),
+                    (float(node1["x"]), float(node1["y"])),
+                ]
+            )
         rows.append(
             {
                 "line_id": str(attrs.get("edge_id") or f"inferred_line_{number:06d}"),
@@ -304,16 +457,17 @@ def _graph_line_frame(
                 "s_nom_mva": default_capacity_mva,
                 "inferred": True,
                 "source": attrs.get("source"),
+                "region": attrs.get("region"),
                 "stage": attrs.get("stage", "connectivity_only"),
-                "geometry": Point(float(node0["x"]), float(node0["y"])),
+                "geometry": geometry,
             }
         )
     return gpd.GeoDataFrame(
         rows,
         columns=columns,
         geometry="geometry",
-        crs=METRIC_CRS,
-    ).to_crs("EPSG:4326")
+        crs="EPSG:4326",
+    )
 
 
 def _equal_service_weights(bus_frame: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -332,7 +486,10 @@ def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
     if roads is None or roads.empty:
         return Point(0.0, 0.0)
 
-    prepared = roads.to_crs(METRIC_CRS).explode(index_parts=False).copy()
+    metric_crs = roads.estimate_utm_crs()
+    if metric_crs is None:
+        return Point(0.0, 0.0)
+    prepared = roads.to_crs(metric_crs).explode(index_parts=False).copy()
     prepared = prepared[prepared.geometry.geom_type.eq("LineString")]
     if prepared.empty:
         return Point(0.0, 0.0)
@@ -351,7 +508,7 @@ def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
             length=float(row.geometry.length),
         )
     if road_graph.number_of_edges() == 0:
-        centroid = unary_union(list(prepared.geometry)).centroid
+        linework = unary_union(list(prepared.geometry))
     else:
         component = max(
             nx.connected_components(road_graph),
@@ -362,55 +519,147 @@ def _largest_road_component_centroid(roads: gpd.GeoDataFrame | None) -> Point:
             for start, end, attrs in road_graph.edges(data=True)
             if start in component and end in component
         ]
-        centroid = unary_union(component_lines).centroid
+        linework = unary_union(component_lines)
 
-    return gpd.GeoSeries([centroid], crs=METRIC_CRS).to_crs("EPSG:4326").iloc[0]
+    root = nearest_points(linework, linework.centroid)[0]
+    return gpd.GeoSeries([root], crs=metric_crs).to_crs("EPSG:4326").iloc[0]
 
 
-def _normalise_power_substations(
+def _empty_power_assets() -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame(
+        {
+            "asset_id": [],
+            "asset_kind": [],
+            "source": [],
+            "region": [],
+            "provisional_root": [],
+            "geometry": [],
+        },
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+
+
+def _normalise_osm_power_assets(
     power_features: gpd.GeoDataFrame | None,
     *,
     region: str,
 ) -> gpd.GeoDataFrame:
+    """Keep OSM substations, plants and generators as candidate power roots."""
     if power_features is None or power_features.empty:
-        return gpd.GeoDataFrame(
-            {"bus_id": [], "source": [], "provisional_root": [], "geometry": []},
-            geometry="geometry",
-            crs="EPSG:4326",
-        )
+        return _empty_power_assets()
+    power_features = power_features.copy()
+    if "power" not in power_features:
+        raise ValueError("OSM power features must contain a power column")
+    power_features["power"] = power_features["power"].astype(str).str.lower()
+    power_features = power_features[
+        power_features["power"].isin({"substation", "plant", "generator"})
+    ].copy()
+    power_features = power_features.reset_index(drop=True)
+    if power_features.empty:
+        return _empty_power_assets()
 
-    substations = power_features.copy()
-    if substations.crs is None:
-        substations = substations.set_crs("EPSG:4326")
-    if "bus_id" not in substations.columns:
-        substations["bus_id"] = [
-            f"{region.upper()}_SUB_{number:03d}" for number in range(1, len(substations) + 1)
+    assets = power_features.copy()
+    if assets.crs is None:
+        assets = assets.set_crs("EPSG:4326")
+    if "bus_id" not in assets.columns:
+        assets["bus_id"] = [
+            f"{region.upper()}_POWER_{number:03d}"
+            for number in range(1, len(assets) + 1)
         ]
-    metric = substations.to_crs(METRIC_CRS)
-    geometry = metric.geometry
+    geometry = assets.geometry
     non_points = ~geometry.geom_type.eq("Point")
     if non_points.any():
         geometry = geometry.copy()
-        geometry.loc[non_points] = geometry.loc[non_points].centroid
+        geometry.loc[non_points] = geometry.loc[non_points].representative_point()
     return gpd.GeoDataFrame(
         {
-            "bus_id": substations["bus_id"].astype(str).to_numpy(),
-            "source": substations["source"].astype(str).to_numpy()
-            if "source" in substations
-            else ["osm_power"] * len(substations),
-            "provisional_root": [False] * len(substations),
+            "asset_id": assets["bus_id"].astype(str).to_numpy(),
+            "asset_kind": assets["power"]
+            .map({"substation": "substation", "plant": "generator", "generator": "generator"})
+            .to_numpy(),
+            "source": assets["source"].astype(str).to_numpy()
+            if "source" in assets
+            else ["osm_power"] * len(assets),
+            "region": assets["region"].astype(str).to_numpy()
+            if "region" in assets
+            else [osm.region_slug(region)] * len(assets),
+            "provisional_root": [False] * len(assets),
         },
         geometry=geometry,
-        crs=METRIC_CRS,
+        crs=assets.crs,
     ).to_crs("EPSG:4326")
 
 
-def _provisional_root_substation(region: str, roads: gpd.GeoDataFrame | None) -> gpd.GeoDataFrame:
+def _reviewed_power_assets(
+    input_dir: Path,
+) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
+    missing = _missing_files(input_dir, REVIEWED_POWER_REQUIRED_FILES)
+    if missing:
+        formatted = "\n".join(f"- {path}" for path in missing)
+        raise FileNotFoundError(
+            "Cannot build the reviewed-data inferred network until these "
+            f"prepared files exist:\n{formatted}"
+        )
+    substations = gpd.read_parquet(input_dir / "snapped_substations.parquet").to_crs(
+        "EPSG:4326"
+    )
+    substations = gpd.GeoDataFrame(
+        {
+            "asset_id": substations["bus_id"].astype(str),
+            "asset_kind": "substation",
+            "source": "reviewed_substation",
+            "region": "mauritius",
+            "provisional_root": False,
+            "geometry": substations.geometry,
+        },
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    generators = pd.read_csv(input_dir / "generators.csv")
+    if {"lon", "lat"} <= set(generators):
+        has_coordinates = (
+            pd.to_numeric(generators["lon"], errors="coerce").notna()
+            & pd.to_numeric(generators["lat"], errors="coerce").notna()
+        )
+        coordinate_rows = generators.loc[has_coordinates].copy()
+    else:
+        coordinate_rows = generators.iloc[0:0].copy()
+    generator_assets = gpd.GeoDataFrame(
+        {
+            "asset_id": coordinate_rows["generator_id"].astype(str),
+            "asset_kind": "generator",
+            "source": "reviewed_generator",
+            "region": "mauritius",
+            "provisional_root": False,
+            "geometry": [
+                Point(float(lon), float(lat))
+                for lon, lat in coordinate_rows[["lon", "lat"]].itertuples(
+                    index=False, name=None
+                )
+            ],
+        },
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    assets = gpd.GeoDataFrame(
+        pd.concat([substations, generator_assets], ignore_index=True),
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    return assets, generators
+
+
+def _provisional_power_root(
+    region: str, roads: gpd.GeoDataFrame | None
+) -> gpd.GeoDataFrame:
     centroid = _largest_road_component_centroid(roads)
     return gpd.GeoDataFrame(
         {
-            "bus_id": [f"{region.upper()}_SUB_001"],
+            "asset_id": [f"{region.upper()}_PROVISIONAL_ROOT"],
+            "asset_kind": ["substation"],
             "source": ["provisional_road_centroid"],
+            "region": [osm.region_slug(region)],
             "provisional_root": [True],
             "geometry": [centroid],
         },
@@ -419,87 +668,302 @@ def _provisional_root_substation(region: str, roads: gpd.GeoDataFrame | None) ->
     )
 
 
-def _default_gridfinder_lines_path() -> Path:
-    return incoming_energy_dir() / "gridfinder" / "grid.gpkg"
+def _inferred_table_dir(result_dir: Path) -> Path:
+    return result_dir / "inferred_distribution"
 
 
-def _inferred_table_dir(output_dir: Path, output_stem: str) -> Path:
-    if output_stem == "inferred":
-        return output_dir / "inferred_distribution"
-    if output_stem.startswith("inferred-"):
-        suffix = output_stem.removeprefix("inferred-")
-        return output_dir / f"inferred_distribution-{suffix}"
-    return output_dir / f"{output_stem}_inferred_distribution"
-
-
-def _substation_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
+def _power_asset_anchor_counts(graph: nx.Graph) -> tuple[int, int]:
     statuses = [
         attrs.get("anchor_status")
         for _, attrs in graph.nodes(data=True)
-        if attrs.get("kind") == "substation"
+        if attrs.get("is_root")
     ]
     return statuses.count("anchored"), statuses.count("unanchored")
 
 
+def _osm_road_envelope_validation(
+    roads: gpd.GeoDataFrame,
+    *,
+    reference_line_length_km: float,
+    tolerance_fraction: float,
+) -> dict[str, object]:
+    """Compare the de-duplicated all-ways road envelope with CEB circuit-km."""
+    graph = build_inferred_distribution_graph(
+        _empty_power_assets(),
+        osm_distribution_lines=roads,
+    )
+    model_total_km = sum(
+        float(attrs.get("length_km", 0.0))
+        for _, _, attrs in graph.edges(data=True)
+        if attrs.get("source") == "osm"
+    )
+    relative_difference = (
+        abs(model_total_km - reference_line_length_km)
+        / float(reference_line_length_km)
+    )
+    return {
+        "status": "pass" if relative_difference <= tolerance_fraction else "warning",
+        "model_total_km": model_total_km,
+        "model_all_lines_total_km": model_total_km,
+        "included_model_sources": ["osm_road_envelope"],
+        "reference_total_km": float(reference_line_length_km),
+        "relative_difference": relative_difference,
+        "tolerance_fraction": tolerance_fraction,
+        "reference_scope": INFERRED_LINE_LENGTH_SCOPE,
+        "reference_source": CEB_TOTAL_NETWORK_LENGTH_SOURCE,
+        "comparison_note": INFERRED_LINE_LENGTH_NOTE,
+    }
+
+
+def _nightlight_supported_roads(
+    roads: gpd.GeoDataFrame,
+    targets: gpd.GeoDataFrame,
+    *,
+    support_distance_m: float,
+) -> tuple[gpd.GeoDataFrame, dict[str, object]]:
+    """Retain the dense road subnetwork supported by nightlight targets.
+
+    Roads within the configured distance of a VIIRS-derived target are kept.
+    Only the largest endpoint-connected road component per island is retained,
+    which removes isolated fragments while preserving local road cycles.
+    """
+    if support_distance_m < 0:
+        raise ValueError("nightlight_support_distance_m must be non-negative")
+    if roads.empty:
+        raise ValueError("Cannot select a nightlight-supported network without roads")
+    if targets.empty:
+        raise ValueError("Cannot select a nightlight-supported network without targets")
+    prepared = roads.to_crs("EPSG:4326").explode(index_parts=False).reset_index(drop=True)
+    prepared = prepared[prepared.geometry.geom_type.eq("LineString")].copy()
+    if prepared.empty:
+        raise ValueError("The OSM road envelope contains no LineStrings")
+    if "region" not in prepared:
+        prepared["region"] = "region"
+
+    metric_crs = prepared.estimate_utm_crs()
+    if metric_crs is None:
+        raise ValueError("Could not select a metric CRS for the nightlight road filter")
+    metric_roads = prepared.to_crs(metric_crs)
+    support_area = targets.to_crs(metric_crs).geometry.buffer(
+        support_distance_m
+    ).union_all()
+    prepared = prepared.loc[metric_roads.geometry.intersects(support_area)].copy()
+    metric_roads = metric_roads.loc[prepared.index]
+    if prepared.empty:
+        raise ValueError("No OSM roads fall within the nightlight support area")
+
+    prepared["_selection_id"] = range(len(prepared))
+    prepared["_start"] = prepared.geometry.map(
+        lambda line: tuple(round(float(value), 6) for value in line.coords[0])
+    )
+    prepared["_end"] = prepared.geometry.map(
+        lambda line: tuple(round(float(value), 6) for value in line.coords[-1])
+    )
+    retained_ids: set[int] = set()
+    component_count = 0
+    for _, region_roads in prepared.groupby("region", dropna=False):
+        graph = nx.Graph()
+        for start, end in region_roads[["_start", "_end"]].itertuples(
+            index=False,
+            name=None,
+        ):
+            graph.add_edge(start, end)
+        components = list(nx.connected_components(graph))
+        component_count += len(components)
+        if not components:
+            continue
+        main_component = max(components, key=len)
+        retained_ids.update(
+            int(selection_id)
+            for selection_id, start, end in region_roads[
+                ["_selection_id", "_start", "_end"]
+            ].itertuples(index=False, name=None)
+            if start in main_component and end in main_component
+        )
+    selected = prepared[prepared["_selection_id"].isin(retained_ids)].copy()
+    selected_metric = metric_roads.loc[selected.index]
+    selected_length_km = float(selected_metric.geometry.length.sum() / 1000)
+    all_metric = roads.to_crs(metric_crs)
+    all_length_km = float(all_metric.geometry.length.sum() / 1000)
+    metadata = {
+        "support_distance_m": float(support_distance_m),
+        "support_point_count": len(targets),
+        "input_road_features": len(roads),
+        "supported_road_features": len(selected),
+        "supported_road_feature_fraction": len(selected) / len(roads),
+        "input_road_length_km": all_length_km,
+        "supported_road_length_km": selected_length_km,
+        "supported_road_length_fraction": (
+            selected_length_km / all_length_km if all_length_km else 0.0
+        ),
+        "candidate_component_count": component_count,
+        "retained_component_count": int(selected["region"].nunique(dropna=False)),
+    }
+    return (
+        selected.drop(columns=["_selection_id", "_start", "_end"]),
+        metadata,
+    )
+
+
+def _reviewed_generators_for_inferred(
+    generators: pd.DataFrame,
+) -> pd.DataFrame:
+    prepared = generators.copy()
+    prepared["bus_id"] = "bus::" + prepared["bus_id"].astype(str)
+    return prepared
+
+
 def _build_inferred_network(
     *,
+    source: str,
     input_dir: Path,
     output_dir: Path,
-    output_stem: str,
     network_path: Path,
     metadata_path: Path,
     region: str,
     allow_download: bool,
     network_type: str,
-    gridfinder_lines: gpd.GeoDataFrame | str | Path | None,
+    nightlight_aoi_path: Path,
+    nightlights_path: Path,
+    nightlight_targets: gpd.GeoDataFrame | str | Path | None,
+    nightlight_threshold: float,
+    nightlight_support_distance_m: float,
     max_anchor_distance_m: float,
     inferred_voltage_kv: float,
     inferred_capacity_mva: float,
     table_output_dir: Path | None,
+    reference_line_length_km: float,
     line_length_tolerance_fraction: float,
+    reference_generation_capacity_mw: float,
+    generation_capacity_tolerance_fraction: float,
 ) -> NetworkBuildOutputs:
-    provisional_root = False
+    if source not in {"inferred-osm", "inferred-data"}:
+        raise ValueError(f"Unsupported inferred source: {source}")
     roads_result = osm.fetch_osm_roads(
         region, network_type=network_type, allow_download=allow_download
     )
-    osm_distribution_lines = _coerce_vector_fetch_result(roads_result)
-    try:
-        power_result = osm.fetch_osm_power_features(
-            region,
-            allow_download=allow_download,
-        )
-    except osm.OSMDownloadRequired:
-        power_result = None
-    substations = _normalise_power_substations(
-        _coerce_vector_fetch_result(power_result),
-        region=region,
-    )
-    if substations.empty:
-        substations = _provisional_root_substation(region, osm_distribution_lines)
-        provisional_root = True
+    roads_cache_path = _fetch_result_path(roads_result)
+    osm_road_envelope = _coerce_vector_fetch_result(roads_result)
+    if osm_road_envelope is None:
+        raise FileNotFoundError("The OSM all-ways road envelope is unavailable")
 
-    if gridfinder_lines is None:
-        gridfinder_lines_path = _default_gridfinder_lines_path()
-        gridfinder_distribution_lines = _read_optional_vector(gridfinder_lines_path)
+    power_cache_path = None
+    power_feature_count = 0
+    reviewed_generator_records = 0
+    reviewed_generators = _empty_generators()
+    if source == "inferred-osm":
+        try:
+            power_result = osm.fetch_osm_power_features(
+                region,
+                allow_download=allow_download,
+            )
+        except osm.OSMDownloadRequired:
+            power_result = None
+        power_cache_path = _fetch_result_path(power_result)
+        power_features = _coerce_vector_fetch_result(power_result)
+        power_feature_count = len(power_features) if power_features is not None else 0
+        power_assets = _normalise_osm_power_assets(power_features, region=region)
+        methodology = INFERRED_OSM_METHODOLOGY
+        power_asset_source = "osm_power"
     else:
-        gridfinder_lines_path = (
-            Path(gridfinder_lines) if isinstance(gridfinder_lines, (str, Path)) else None
-        )
-        gridfinder_distribution_lines = _coerce_optional_vector(gridfinder_lines)
+        power_assets, reviewed_generators = _reviewed_power_assets(input_dir)
+        reviewed_generator_records = len(reviewed_generators)
+        methodology = INFERRED_DATA_METHODOLOGY
+        power_asset_source = "reviewed_substations_and_generators"
 
-    graph = build_inferred_distribution_graph(
-        substations,
-        gridfinder_lines=gridfinder_distribution_lines,
-        osm_distribution_lines=osm_distribution_lines,
-        max_anchor_distance_m=max_anchor_distance_m,
+    member_roots: list[gpd.GeoDataFrame] = []
+    for member in osm.region_members(region):
+        member_slug = osm.region_slug(member)
+        has_root = (
+            not power_assets.empty
+            and power_assets["region"].astype(str).eq(member_slug).any()
+        )
+        if has_root:
+            continue
+        member_roads = osm_road_envelope
+        if (
+            member_roads is not None
+            and "region" in member_roads
+            and len(osm.region_members(region)) > 1
+        ):
+            member_roads = member_roads[
+                member_roads["region"].astype(str).eq(member_slug)
+            ]
+        member_roots.append(_provisional_power_root(member, member_roads))
+    if member_roots:
+        power_assets = gpd.GeoDataFrame(
+            pd.concat([power_assets, *member_roots], ignore_index=True),
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+
+    if nightlight_targets is not None:
+        override_targets = _coerce_optional_vector(nightlight_targets)
+        nightlight_target_points = gpd.GeoDataFrame(
+            geometry=override_targets.to_crs("EPSG:4326").geometry.representative_point(),
+            crs="EPSG:4326",
+        )
+        nightlight_targets_path = None
+        nightlight_targets_metadata_path = None
+    else:
+        nightlight_targets_outputs = build_nightlight_targets(
+            nightlights_path,
+            output_dir / "nightlight_targets",
+            aoi_path=nightlight_aoi_path,
+            region=region,
+            nightlight_threshold=nightlight_threshold,
+        )
+        nightlight_target_points = gpd.read_parquet(nightlight_targets_outputs.targets)
+        nightlight_targets_path = nightlight_targets_outputs.targets
+        nightlight_targets_metadata_path = nightlight_targets_outputs.metadata
+    support_points = gpd.GeoDataFrame(
+        pd.concat(
+            [
+                nightlight_target_points[["geometry"]].to_crs("EPSG:4326"),
+                power_assets[["geometry"]].to_crs("EPSG:4326"),
+            ],
+            ignore_index=True,
+        ),
+        geometry="geometry",
+        crs="EPSG:4326",
     )
-    table_dir = _inferred_table_dir(output_dir, output_stem)
+    supported_roads, supported_road_metadata = _nightlight_supported_roads(
+        osm_road_envelope,
+        support_points,
+        support_distance_m=nightlight_support_distance_m,
+    )
+    supported_road_metadata["nightlight_target_count"] = len(nightlight_target_points)
+    supported_road_metadata["power_asset_support_count"] = len(power_assets)
+
+    reviewed_backbone: gpd.GeoDataFrame | None = None
+    reviewed_backbone_edges = 0
+    if source == "inferred-data":
+        reviewed_substations, reviewed_routes, _ = _load_reviewed_inputs(input_dir)
+        reviewed_topology = derive_base_topology(
+            reviewed_substations,
+            reviewed_routes,
+        )
+        reviewed_backbone = reviewed_topology.lines.copy()
+        reviewed_backbone["region"] = "mauritius"
+        reviewed_backbone_edges = len(reviewed_backbone)
+    graph = build_inferred_distribution_graph(
+        power_assets,
+        osm_distribution_lines=supported_roads,
+        reviewed_backbone_lines=reviewed_backbone,
+        max_anchor_distance_m=max_anchor_distance_m,
+        anchor_to_each_line_source=reviewed_backbone is not None,
+    )
+    table_dir = _inferred_table_dir(output_dir)
     inferred_tables = write_inferred_distribution_tables(
         graph,
         table_dir,
     )
 
     buses = _node_bus_frame(graph)
+    buses["v_nom_kv"] = pd.to_numeric(
+        buses["v_nom_kv"],
+        errors="coerce",
+    ).fillna(inferred_voltage_kv)
     lines = _graph_line_frame(
         graph,
         default_voltage_kv=inferred_voltage_kv,
@@ -509,15 +973,39 @@ def _build_inferred_network(
     service_weights_path_out = table_dir / "service_weights.csv"
     service_weights.to_csv(service_weights_path_out, index=False)
 
-    generators = _empty_generators()
+    generators = (
+        _reviewed_generators_for_inferred(reviewed_generators)
+        if source == "inferred-data"
+        else _empty_generators()
+    )
     table_outputs = None
+    validation_kwargs = {
+        "source": source,
+        "reference_line_length_km": reference_line_length_km,
+        "reference_line_length_scope": INFERRED_LINE_LENGTH_SCOPE,
+        "reference_line_length_source": CEB_TOTAL_NETWORK_LENGTH_SOURCE,
+        "reference_line_length_note": INFERRED_LINE_LENGTH_NOTE,
+        "reference_line_length_sources": (
+            "osm",
+            "reviewed_backbone",
+        ),
+        "line_length_tolerance_fraction": line_length_tolerance_fraction,
+        "reference_generation_capacity_mw": (
+            reference_generation_capacity_mw
+            if source == "inferred-data"
+            else None
+        ),
+        "generation_capacity_tolerance_fraction": (
+            generation_capacity_tolerance_fraction
+        ),
+        "allow_incomplete_generators": source == "inferred-data",
+    }
     if table_output_dir is None:
         validation = validate_model_tables(
             buses,
             lines,
             generators,
-            source="inferred",
-            line_length_tolerance_fraction=line_length_tolerance_fraction,
+            **validation_kwargs,
         )
     else:
         table_outputs, validation = write_model_tables(
@@ -525,22 +1013,42 @@ def _build_inferred_network(
             lines,
             generators,
             table_output_dir,
-            source="inferred",
-            line_length_tolerance_fraction=line_length_tolerance_fraction,
+            **validation_kwargs,
         )
+    envelope_validation = _osm_road_envelope_validation(
+        osm_road_envelope,
+        reference_line_length_km=reference_line_length_km,
+        tolerance_fraction=line_length_tolerance_fraction,
+    )
+    if table_outputs is not None:
+        _write_metadata(table_outputs.validation, validation)
     if validation["errors"]:
         raise ValueError("Invalid inferred network tables:\n- " + "\n- ".join(validation["errors"]))
-    network = build_topology_network(buses, lines, generators)
-    anchored, unanchored = _substation_anchor_counts(graph)
+    network = build_topology_network(buses, lines, _complete_generators(generators))
+    anchored, unanchored = _power_asset_anchor_counts(graph)
     _write_network(network_path, network)
+    spatial_dir = network_path.parent / "geoparquet"
+    spatial_outputs = spatial_export_paths(
+        spatial_dir,
+        network_id=network_path.stem,
+    )
     _write_metadata(
         metadata_path,
         {
-            "source": "inferred",
+            "source": source,
+            "methodology": methodology,
+            "distance_method": "WGS84 geodesic",
+            "nightlight_policy": (
+                "viirs_targets_filter_dense_osm_roads_and_preserve_cycles"
+            ),
             "input_dir": str(input_dir),
             "network": str(network_path),
+            "spatial_nodes": str(spatial_outputs.nodes),
+            "spatial_edges": str(spatial_outputs.edges),
+            "spatial_manifest": str(spatial_outputs.manifest),
             "region": region,
-            "network_type": network_type,
+            "regions": list(osm.region_members(region)),
+            "road_envelope_network_type": network_type,
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -550,27 +1058,69 @@ def _build_inferred_network(
             "inferred": True,
             "stage": "connectivity_only",
             "service_weights": str(service_weights_path_out),
-            "road_edges": len(osm_distribution_lines) if osm_distribution_lines is not None else 0,
-            "gridfinder_edges": len(gridfinder_distribution_lines)
-            if gridfinder_distribution_lines is not None
-            else 0,
-            "gridfinder_lines_path": str(gridfinder_lines_path)
-            if gridfinder_lines_path is not None
-            else None,
-            "anchored_substations": anchored,
-            "unanchored_substations": unanchored,
-            "provisional_root": provisional_root,
+            "road_envelope_edges": len(osm_road_envelope),
+            "osm_road_envelope_cache": roads_cache_path,
+            "nightlight_aoi": str(nightlight_aoi_path),
+            "nightlights": str(nightlights_path),
+            "nightlight_threshold": nightlight_threshold,
+            "nightlight_support_distance_m": nightlight_support_distance_m,
+            "nightlight_supported_roads": supported_road_metadata,
+            "osm_power_cache": power_cache_path,
+            "osm_power_features": power_feature_count,
+            "reviewed_generator_records": reviewed_generator_records,
+            "power_asset_source": power_asset_source,
+            "power_assets": len(power_assets),
+            "substation_roots": int(power_assets["asset_kind"].eq("substation").sum()),
+            "generator_roots": int(power_assets["asset_kind"].eq("generator").sum()),
+            "provisional_roots": len(member_roots),
+            "reviewed_backbone_edges": reviewed_backbone_edges,
+            "nightlight_targets_path": (
+                str(nightlight_targets_path)
+                if nightlight_targets_path is not None
+                else None
+            ),
+            "nightlight_targets_metadata": (
+                str(nightlight_targets_metadata_path)
+                if nightlight_targets_metadata_path is not None
+                else None
+            ),
+            "anchored_power_assets": anchored,
+            "unanchored_power_assets": unanchored,
             "inferred_voltage_kv": inferred_voltage_kv,
             "inferred_capacity_mva": inferred_capacity_mva,
             "max_anchor_distance_m": max_anchor_distance_m,
+            "connected_components": nx.number_connected_components(graph),
+            "model_line_length_km": validation["totals"]["line_length_km"],
+            "line_length_validation": validation["checks"][
+                "line_length_against_published_ceb_total"
+            ],
+            "road_envelope_line_length_validation": envelope_validation,
             "human_tables": str(table_output_dir) if table_output_dir else None,
             "validation_status": validation["status"],
             "validation_warnings": validation["warnings"],
         },
     )
+    spatial_outputs = write_network_geoparquet(
+        buses,
+        lines,
+        spatial_dir,
+        network_id=network_path.stem,
+        network_source=source,
+        methodology=methodology,
+        source_network_path=network_path,
+        source_metadata_path=metadata_path,
+        operational_ready=False,
+        publish_voltage=False,
+        publish_capacity=False,
+        electrical_values_basis="topology_placeholder",
+        stage="connectivity_only",
+    )
     return NetworkBuildOutputs(
         network=network_path,
         metadata=metadata_path,
+        spatial_nodes=spatial_outputs.nodes,
+        spatial_edges=spatial_outputs.edges,
+        spatial_manifest=spatial_outputs.manifest,
         inferred_nodes=inferred_tables.nodes,
         inferred_edges=inferred_tables.edges,
         inferred_metadata=inferred_tables.metadata,
@@ -589,13 +1139,18 @@ def build_network(
     output_name: str | None = None,
     overwrite: bool = False,
     allow_download: bool = False,
-    network_type: str = "drive",
-    gridfinder_lines: gpd.GeoDataFrame | str | Path | None = None,
-    max_anchor_distance_m: float = 500,
+    network_type: str = "all",
+    nightlight_aoi_path: Path | None = None,
+    nightlights_path: Path | None = None,
+    nightlight_targets: gpd.GeoDataFrame | str | Path | None = None,
+    nightlight_threshold: float = 0.1,
+    nightlight_support_distance_m: float = DEFAULT_NIGHTLIGHT_SUPPORT_DISTANCE_M,
+    max_anchor_distance_m: float = DEFAULT_MAX_ANCHOR_DISTANCE_M,
     inferred_voltage_kv: float = 11,
     inferred_capacity_mva: float = 5,
     export_root: Path | None = None,
     reference_line_length_km: float = CEB_TRANSMISSION_LENGTH_KM,
+    inferred_reference_line_length_km: float = CEB_TOTAL_NETWORK_LENGTH_KM,
     line_length_tolerance_fraction: float = 0.35,
     reference_generation_capacity_mw: float = CEB_REPORTED_INSTALLED_GENERATION_MW,
     generation_capacity_tolerance_fraction: float = 0.10,
@@ -605,38 +1160,50 @@ def build_network(
 ) -> NetworkBuildOutputs:
     """Build and save a named network-source artifact.
 
-    ``source="base"`` derives a topology from prepared provided-data geometry.
-    ``source="inferred"``
-    requires a ``region`` (any OSM/Nominatim query, e.g. "Rodrigues, Mauritius")
-    and builds the topology from that region's OSM roads plus an optional local
-    GridFinder line layer. OSM power features are used as substation roots when
-    cached; otherwise a provisional road-network root is created. Existing
+    ``source="base"`` derives a topology from reviewed CEB assets.
+    ``source="inferred-osm"`` uses OSM substations, plants and generators as
+    power terminals. ``source="inferred-data"`` instead uses the reviewed
+    input substations and generator sites. Both inferred products use VIIRS
+    nightlight targets to retain a dense, cyclic OSM road subnetwork;
+    the reviewed-data product also preserves the CEB backbone.
+    ``source="inferred"`` remains an alias for ``inferred-osm``.
+    Existing
     outputs are not overwritten unless ``overwrite`` is set, and OSM data is
-    only downloaded when ``allow_download`` is True. When ``export_root`` is
-    supplied, the human-readable ``generators.csv``, ``lines.csv`` and
-    validation report are written below a source-named subdirectory.
+    only downloaded when ``allow_download`` is True. Every build also writes
+    checksum-linked node and edge GeoParquet views in a ``geoparquet``
+    subdirectory. Each named result is packaged under
+    ``<output_dir>/<output_name>/``. When ``export_root`` is supplied, the
+    human-readable
+    ``generators.csv``, ``lines.csv`` and validation report are written below
+    a source-named subdirectory.
     """
     source = source.lower()
-    if source not in {"base", "inferred"}:
-        raise ValueError("source must be 'base' or 'inferred'")
-    if region is not None and source != "inferred":
-        raise ValueError("region can only be used with source='inferred'")
-    if source == "inferred" and not region:
+    if source == "inferred":
+        source = "inferred-osm"
+    valid_sources = {"base", "inferred-osm", "inferred-data"}
+    if source not in valid_sources:
         raise ValueError(
-            "source='inferred' requires a region, e.g. region='Rodrigues, Mauritius' "
-            "or a REGIONS shortcut like 'rodrigues'."
+            "source must be 'base', 'inferred-osm', or 'inferred-data'"
+        )
+    if region is not None and source == "base":
+        raise ValueError("region can only be used with an inferred source")
+    if source != "base" and not region:
+        raise ValueError(
+            f"source={source!r} requires a region, e.g. "
+            "region='mauritius-rodrigues'."
         )
 
     input_dir = Path(input_dir or processed_energy_dir() / "provided")
-    output_dir = Path(output_dir or processed_energy_dir() / "networks")
+    output_dir = Path(output_dir or network_output_dir())
     if output_name:
         output_stem = output_name
-    elif source == "inferred":
-        output_stem = f"inferred-{osm.region_slug(region)}"
+    elif source != "base":
+        output_stem = f"{source}-{osm.region_slug(region)}"
     else:
         output_stem = "base"
-    network_path = output_dir / f"{output_stem}.nc"
-    metadata_path = output_dir / f"{output_stem}_metadata.json"
+    result_dir = output_dir / output_stem
+    network_path = result_dir / f"{output_stem}.nc"
+    metadata_path = result_dir / f"{output_stem}_metadata.json"
     table_output_dir = Path(export_root) / output_stem if export_root else None
 
     if network_path.exists() and not overwrite:
@@ -659,19 +1226,38 @@ def build_network(
             default_voltage_kv=base_default_voltage_kv,
             topology_capacity_mva=base_topology_capacity_mva,
         )
+    nightlight_input_dir = (
+        incoming_energy_dir() / "osm" / osm.region_slug(region)
+    )
+    nightlight_aoi_path = Path(
+        nightlight_aoi_path or nightlight_input_dir / "aoi.parquet"
+    )
+    nightlights_path = Path(
+        nightlights_path
+        or incoming_energy_dir()
+        / "nightlights"
+        / f"viirs-{osm.region_slug(region)}-2024.tif"
+    )
     return _build_inferred_network(
+        source=source,
         input_dir=input_dir,
-        output_dir=output_dir,
-        output_stem=output_stem,
+        output_dir=result_dir,
         network_path=network_path,
         metadata_path=metadata_path,
         region=region,
         allow_download=allow_download,
         network_type=network_type,
-        gridfinder_lines=gridfinder_lines,
+        nightlight_aoi_path=nightlight_aoi_path,
+        nightlights_path=nightlights_path,
+        nightlight_targets=nightlight_targets,
+        nightlight_threshold=nightlight_threshold,
+        nightlight_support_distance_m=nightlight_support_distance_m,
         max_anchor_distance_m=max_anchor_distance_m,
         inferred_voltage_kv=inferred_voltage_kv,
         inferred_capacity_mva=inferred_capacity_mva,
         table_output_dir=table_output_dir,
+        reference_line_length_km=inferred_reference_line_length_km,
         line_length_tolerance_fraction=line_length_tolerance_fraction,
+        reference_generation_capacity_mw=reference_generation_capacity_mw,
+        generation_capacity_tolerance_fraction=generation_capacity_tolerance_fraction,
     )

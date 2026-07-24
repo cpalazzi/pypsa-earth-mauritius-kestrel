@@ -12,13 +12,20 @@ energy:
     topology_capacity_mva: 10000
 
   inferred_network:
-    region: rodrigues
-    network_type: drive
+    region: mauritius-rodrigues
+    # VIIRS nightlight targets filter the all-ways road network; the resulting
+    # inferred product keeps road cycles and the reviewed-data variant also
+    # preserves the main CEB backbone.
+    network_type: all
+    nightlight_threshold: 0.1
+    nightlight_support_distance_m: 1000
+    line_length_tolerance_fraction: 0.10
 
   distribution_proxy:
-    # Paths are relative to data_root. GridFinder estimates possible line
-    # routes; it is not confirmed engineering data.
-    gridfinder_lines: 0-incoming/energy/gridfinder/grid.gpkg
+    # Optional inputs for the lower-level prepare-inferred-distribution command.
+    # The named inferred builds above run the nightlight-driven road-filter
+    # method directly and do not read these legacy experiment paths.
+    precomputed_lines: 0-incoming/energy/inferred/distribution_lines.gpkg
     osm_distribution_lines: 0-incoming/energy/osm/distribution_lines.parquet
 
   operations:
@@ -30,6 +37,8 @@ energy:
     # CEB reports 442 km overhead plus 36.9 km underground at 66 kV.
     # This is an advisory coverage check because route and circuit length may differ.
     ceb_transmission_length_km: 478.9
+    # CEB's reported total across transmission, MV and LV (31 December 2024).
+    ceb_total_network_length_km: 10492.2
     line_length_tolerance_fraction: 0.35
     # CEB Annual Report 2023-2024 pp. 50-51, installed-capacity grand total.
     ceb_reported_installed_generation_mw: 881.56

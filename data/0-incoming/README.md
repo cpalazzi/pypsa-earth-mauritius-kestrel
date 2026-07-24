@@ -12,8 +12,8 @@ data/0-incoming/energy/
     power_transmission/
     substation/
     generation_source/
-  gridfinder/
-    grid.gpkg
+  inferred/
+    distribution_lines.gpkg
   osm/
     distribution_lines.parquet
 ```
@@ -27,12 +27,12 @@ The current intake requires the demand workbook and the main Shapefile parts
 both generation layers. The notebook reports the exact missing filename when
 one of these parts is absent.
 
-GridFinder and OSM line data can help estimate which areas may be served by
+Precomputed and OSM line data can help estimate which areas may be served by
 each substation. They do not provide confirmed line capacities, voltages or
 other engineering details.
 
-The inferred distribution-network command reads GridFinder from
-`energy/gridfinder/grid.gpkg` and OSM distribution lines from
+The inferred distribution-network command reads precomputed lines from
+`energy/inferred/distribution_lines.gpkg` and OSM distribution lines from
 `energy/osm/distribution_lines.parquet` when those files exist. Keep a
 provider/source column in any replacement file so inferred routes remain
 distinguishable from reviewed CEB assets.

@@ -31,27 +31,23 @@ def _time_step_hours(index: pd.Index) -> float:
 def _bus_voltage_kv(
     bus_id: str,
     bus_row: pd.Series,
-    lines: pd.DataFrame,
+    connected_voltages: set[float],
 ) -> float:
     """Return one nominal bus voltage consistent with its connected AC lines."""
-    connected = lines.loc[
-        lines["bus0"].astype(str).eq(bus_id) | lines["bus1"].astype(str).eq(bus_id),
-        "v_nom_kv",
-    ].dropna()
-    connected_voltages = np.unique(connected.astype(float))
+    connected_voltage_values = np.array(sorted(connected_voltages), dtype=float)
 
     explicit_voltage = bus_row.get("v_nom_kv")
     if pd.notna(explicit_voltage):
         explicit_voltage = float(explicit_voltage)
-        if connected_voltages.size and not np.allclose(
-            connected_voltages,
+        if connected_voltage_values.size and not np.allclose(
+            connected_voltage_values,
             explicit_voltage,
         ):
             raise ValueError(f"Bus {bus_id} voltage does not match its connected line voltages")
         return explicit_voltage
-    if connected_voltages.size == 1:
-        return float(connected_voltages[0])
-    if connected_voltages.size > 1:
+    if connected_voltage_values.size == 1:
+        return float(connected_voltage_values[0])
+    if connected_voltage_values.size > 1:
         raise ValueError(
             f"Bus {bus_id} has multiple line voltages. Represent each voltage "
             "level as a separate bus connected by a Transformer."
@@ -133,32 +129,87 @@ def build_topology_network(
     network = pypsa.Network()
     network.add("Carrier", "AC")
 
-    bus_frame = buses.to_crs("EPSG:4326").set_index("bus_id")
-    for bus_id, row in bus_frame.iterrows():
-        bus_id = str(bus_id)
-        network.add(
-            "Bus",
-            bus_id,
-            x=float(row.geometry.x),
-            y=float(row.geometry.y),
-            v_nom=_bus_voltage_kv(bus_id, row, lines),
-            carrier="AC",
-        )
+    connected_voltages: dict[str, set[float]] = {}
+    for row in lines[["bus0", "bus1", "v_nom_kv"]].itertuples(index=False):
+        if pd.isna(row.v_nom_kv):
+            continue
+        voltage = float(row.v_nom_kv)
+        connected_voltages.setdefault(str(row.bus0), set()).add(voltage)
+        connected_voltages.setdefault(str(row.bus1), set()).add(voltage)
 
-    for _, row in lines.iterrows():
-        # PyPSA Line.s_nom is the branch apparent-power rating in MVA.
-        network.add(
-            "Line",
-            str(row["line_id"]),
-            bus0=str(row["bus0"]),
-            bus1=str(row["bus1"]),
-            carrier="AC",
-            length=float(row["length_km"]),
-            s_nom=float(row["s_nom_mva"]),
-            s_nom_extendable=False,
-            r=max(float(row["length_km"]) * line_resistance_ohm_per_km, 1e-6),
-            x=max(float(row["length_km"]) * line_reactance_ohm_per_km, 1e-6),
+    bus_frame = buses.to_crs("EPSG:4326").copy()
+    bus_frame["bus_id"] = bus_frame["bus_id"].astype(str)
+    bus_frame = bus_frame.set_index("bus_id")
+    bus_voltages = [
+        _bus_voltage_kv(
+            bus_id,
+            row,
+            connected_voltages.get(bus_id, set()),
         )
+        for bus_id, row in bus_frame.iterrows()
+    ]
+    network.madd(
+        "Bus",
+        bus_frame.index,
+        x=bus_frame.geometry.x.to_numpy(),
+        y=bus_frame.geometry.y.to_numpy(),
+        v_nom=bus_voltages,
+        carrier="AC",
+    )
+    for column in (
+        "name",
+        "kind",
+        "asset_id",
+        "is_root",
+        "inferred",
+        "source",
+        "region",
+        "provisional_root",
+        "anchor_status",
+        "anchor_distance_m",
+    ):
+        if column in bus_frame:
+            network.buses[column] = bus_frame[column].reindex(network.buses.index)
+
+    line_frame = lines.copy()
+    line_frame["line_id"] = line_frame["line_id"].astype(str)
+    line_frame = line_frame.set_index("line_id")
+    lengths = line_frame["length_km"].astype(float).to_numpy()
+    # PyPSA Line.s_nom is the branch apparent-power rating in MVA.
+    network.madd(
+        "Line",
+        line_frame.index,
+        bus0=line_frame["bus0"].astype(str).to_numpy(),
+        bus1=line_frame["bus1"].astype(str).to_numpy(),
+        carrier="AC",
+        length=lengths,
+        s_nom=line_frame["s_nom_mva"].astype(float).to_numpy(),
+        s_nom_extendable=False,
+        r=np.maximum(lengths * line_resistance_ohm_per_km, 1e-6),
+        x=np.maximum(lengths * line_reactance_ohm_per_km, 1e-6),
+    )
+
+    if "geometry" in lines.columns:
+        line_geometry = line_frame["geometry"]
+        valid_geometry = line_geometry.map(
+            lambda geometry: geometry.wkt
+            if geometry is not None and not geometry.is_empty
+            else ""
+        )
+        network.lines["geometry"] = valid_geometry.reindex(network.lines.index).fillna("")
+    for column in (
+        "inferred",
+        "source",
+        "region",
+        "stage",
+        "source_route_id",
+        "source_route_part_id",
+        "circuit_id",
+        "derived",
+        "rating_basis",
+    ):
+        if column in line_frame:
+            network.lines[column] = line_frame[column].reindex(network.lines.index)
 
     for _, row in generators.iterrows():
         carrier = str(row["carrier"])

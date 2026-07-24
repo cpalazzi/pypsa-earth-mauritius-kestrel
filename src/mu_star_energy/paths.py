@@ -35,3 +35,8 @@ def processed_energy_dir() -> Path:
 
 def output_energy_dir() -> Path:
     return data_root() / "2-out" / "energy"
+
+
+def network_output_dir() -> Path:
+    """Built networks are model outputs, so they live under 2-out."""
+    return output_energy_dir() / "networks"

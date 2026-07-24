@@ -3,6 +3,8 @@ import json
 import pandas as pd
 
 from mu_star_energy.network_tables import (
+    CEB_TOTAL_NETWORK_LENGTH_KM,
+    CEB_TOTAL_NETWORK_LENGTH_SOURCE,
     validate_model_tables,
     write_input_templates,
     write_model_tables,
@@ -129,3 +131,35 @@ def test_validation_compares_modelled_and_reported_generation_capacity():
     assert check["reference_total_mw"] == 100.0
     assert check["coverage_fraction"] == 0.5
     assert any("covers 50.0%" in item for item in report["warnings"])
+
+
+def test_inferred_validation_uses_explicit_whole_network_reference():
+    buses, lines, generators = _model_tables()
+    lines["length_km"] = CEB_TOTAL_NETWORK_LENGTH_KM
+    lines["source"] = "osm"
+    anchor = lines.copy()
+    anchor["line_id"] = "anchor"
+    anchor["length_km"] = 2.0
+    anchor["source"] = "substation_anchor"
+    lines = pd.concat([lines, anchor], ignore_index=True)
+
+    report = validate_model_tables(
+        buses,
+        lines,
+        generators,
+        source="inferred",
+        reference_line_length_km=CEB_TOTAL_NETWORK_LENGTH_KM,
+        reference_line_length_scope="CEB total transmission and distribution length",
+        reference_line_length_source=CEB_TOTAL_NETWORK_LENGTH_SOURCE,
+        reference_line_length_note="Whole-network circuit-km coverage check.",
+        reference_line_length_sources=("osm",),
+    )
+
+    check = report["checks"]["line_length_against_published_ceb_total"]
+    assert check["status"] == "pass"
+    assert check["reference_total_km"] == 10_492.2
+    assert check["model_total_km"] == 10_492.2
+    assert check["model_all_lines_total_km"] == 10_494.2
+    assert check["included_model_sources"] == ["osm"]
+    assert check["reference_scope"] == "CEB total transmission and distribution length"
+    assert check["comparison_note"] == "Whole-network circuit-km coverage check."

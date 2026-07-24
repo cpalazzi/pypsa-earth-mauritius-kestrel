@@ -21,16 +21,11 @@ data/1-processed/energy/
   templates/
     generators.csv
     lines.csv
-  networks/
-    base.nc
-    base_metadata.json
-    inferred.nc
-    inferred_metadata.json
-    inferred_distribution/
-      inferred_distribution_nodes.csv
-      inferred_distribution_edges.csv
-      inferred_distribution_metadata.json
 ```
+
+Built networks are model outputs, not processed inputs, so they live under
+`data/2-out/energy/networks/<name>/` (the PyPSA `.nc`, metadata, GeoParquet
+bundle, review CSV tables and maps), not here.
 
 Prepared evidence used to build the base network:
 
@@ -124,9 +119,9 @@ Every substation is snapped. The 75 m warning used in the intake notebook only
 highlights movements for attention; it does not exclude a point.
 
 The optional `inferred_distribution/` files are produced only by the explicit
-inferred network build. They are connectivity-only GridFinder/OSM graph tables
+inferred network build. They are connectivity-only nightlight/OSM graph tables
 for review and are not confirmed electrical line assets. `inferred.nc` is a
-PyPSA network derived from OSM roads (the GridFinder approach) for testing; it
+PyPSA network derived from nightlight-supported OSM roads for testing; it
 remains inferred and separate from the reviewed `base.nc` network.
 
 Each network build also writes the same human-facing tables and an advisory

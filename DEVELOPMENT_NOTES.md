@@ -80,7 +80,7 @@ Standalone run path:
 3. review generated `generators.csv`, line-length and generation-capacity
    coverage validation, and the demand inputs under
    `data/1-processed/energy/provided`;
-4. build and save `base.nc`, then attach demand to that network;
+4. build and save `networks/base/base.nc`, then attach demand to that network;
 5. call `EnergyModel().simulate(network, disruptions)`.
 
 ## Module map
@@ -90,18 +90,23 @@ Standalone run path:
   demand summaries.
 - `network.py`: builds a fixed-capacity PyPSA topology and attaches demand and
   service weights to a saved topology for a run.
-- `network_source.py`: builds and saves `base` and `inferred` PyPSA networks.
+- `network_source.py`: builds and saves the reviewed `base` plus the explicit
+  `inferred-osm` and `inferred-data` PyPSA topology products.
+- `nightlight_targets.py`: extracts VIIRS nightlight targets (high-pass filter
+  and threshold) used to select the supported road subnetwork.
+- `spatial_export.py`: writes deterministic node/edge GeoParquet views and a
+  manifest bound to the canonical NetCDF checksum.
 - `network_tables.py`: defines the human CSV schemas, writes source-specific
   review exports and performs advisory coverage validation.
 - `model.py`: applies disruptions to a copied network, optimises supply and
   returns standard supply metrics.
 - `damage.py`: converts asset damage fractions into usable asset fractions for
   the energy model.
-- `distribution.py`: estimates substation demand shares from OSM/GridFinder
+- `distribution.py`: estimates substation demand shares from OSM/precomputed
   line-length proxies without adding inferred feeders to the electrical
   network.
 - `distribution_network.py`: builds the explicitly inferred
-  GridFinder/OSM topology-only distribution graph and estimates downstream
+  precomputed/OSM topology-only distribution graph and estimates downstream
   disconnection impacts.
 - `paths.py`: centralises repository and data-stage paths, including
   `MU_STAR_DATA_ROOT`.
@@ -127,7 +132,7 @@ Current interruption-model preparation produces:
 - generated power-station records with geometry, nearest substations and CEB
   report capacity for clearly matched station names;
 - observed monthly peak demand and annual electricity use by customer group;
-- equal demand shares between substations because no OSM/GridFinder
+- equal demand shares between substations because no OSM/precomputed
   distribution file has yet been added.
 
 The Python network builder and CLI can use demand that changes over time.
@@ -142,17 +147,16 @@ capacity in every time step.
 Every interruption run writes `demand_summary.csv` with system-level and
 substation-level profile demand, annualized demand, peak demand and load
 factor for validation.
-`build-network inferred --region <query>` writes a topology-only inferred
-network from that region's OSM roads and power features (the GridFinder
-approach) to `data/1-processed/energy/networks/inferred-<region>.nc`. The region
-is required (any OSM/Nominatim query, e.g. `rodrigues` or `"Rodrigues, Mauritius"`)
-and OSM is only contacted with `--allow-download`; cached results are reused and
-existing outputs are not overwritten without `--overwrite`. If no power feature
-is found, the metadata marks a provisional root. The `base` topology is derived
-from provided transmission routes and snapped substations; incomplete generator
-rows are retained for review but do not block the topology build. Interruption
-runs require the saved network plus `demand_profile.csv` and service weights.
-Successful builds write human review tables under `data/2-out/energy/<source>/`.
+`build-network inferred-osm --region <query>` and `build-network
+inferred-data --region <query>` run the same nightlight-driven road filter.
+The first uses OSM substations, plants and generators as known
+terminals; the second uses reviewed input substations and generator sites.
+VIIRS nightlight targets retain the dense OSM road subnetwork within the
+configured support distance, rather than reducing it to a least-cost tree. The
+default `all` OSM extract is retained separately as a length-validation
+envelope against CEB's reported 10,492.2 km. Existing outputs are not
+overwritten without `--overwrite`. The `base` topology remains the only
+reviewed operational topology.
 
 ## Data stages
 
@@ -223,23 +227,51 @@ efficiency source. The current builder supports AC lines only; add explicit
 transformer-table support before representing substations with multiple voltage
 levels.
 
+#### Deferred: design voltage, line ratings and the 132 kV uprating scenario
+
+Not needed yet — current priority is the `build_network` workflow, not
+interruption analysis. Captured here from the 2025 CEB map review so it is not
+lost.
+
+- The CEB map colours lines by construction class: red = 66 kV, blue =
+  "132 kV transmission operating at 66 kV". `PowerGrid.shp` does not carry this;
+  the distinction lives only in `network_map_2025.png`.
+- Model everything at the operating voltage (bus `v_nom = 66`). In the linear
+  ("DC") OPF, PyPSA converts ohmic reactance to per-unit on a `v_nom^2` base, so
+  stamping 132 kV on the blue spans would cut their per-unit reactance ~4x and
+  distort the KVL flow split; it would also create mixed-voltage buses that
+  need explicit 66/132 transformers. Keep 66 kV uniform.
+- Record the design class as provenance only: a `design_voltage_kv` (66/132)
+  column from a small reference table transcribed from the map, keyed by
+  substation span (same pattern as `CEB_SUBSTATION_NAMES`). It carries through to
+  netCDF and is ignored by the solver. The blue-span list still needs a review
+  pass against the map.
+- The 132 kV matters for resilience through capacity, not voltage: at 66 kV a
+  conductor carries ~half its 132 kV MVA. Represent the upside as an explicit
+  "uprate blue corridor" scenario (on tagged spans: `v_nom -> 132`,
+  `s_nom -> ~2x`, add transformer coupling) and compare unserved energy against
+  the 66 kV base.
+- Prerequisite for any of the above to change results: replace the flat
+  10,000 MVA `topology_capacity_mva` placeholder with real per-line 66 kV
+  thermal ratings (conductor ampacity). Until then no line limit binds.
+
 ### Estimating the location of demand
 
 The actual distribution system is not available. Use:
 
 - OSM mapped distribution infrastructure where present;
-- GridFinder estimated lines for areas where mapping is missing;
+- nightlight-supported road estimates for areas where mapping is missing;
 - population, customer or economic data when available.
 
 These data help divide demand and customer impacts between substations. Do not
-insert unconfirmed GridFinder lines into the electrical network calculation or
+insert unconfirmed inferred lines into the electrical network calculation or
 give them assumed capacities.
 
-GridFinder estimates possible routes from night-time lights and roads. Keep a
-`source` column so users can distinguish GridFinder estimates from OSM mapping
-and CEB data.
+Nightlight targets identify likely electrified areas from night-time lights;
+the OSM roads near them are retained. Keep a `source` column so users can
+distinguish inferred estimates from OSM mapping and CEB data.
 
-For a distribution-network experiment, keep GridFinder routes out of the
+For a distribution-network experiment, keep inferred routes out of the
 reviewed baseline and label the alternative topology as inferred. Start with
 graph connectivity and downstream demand disconnection. Distribution
 power-flow cases require separate voltage-level buses and transformers, plus
@@ -252,11 +284,11 @@ Primary interruption-model notebooks:
 1. `00-data-review/00_data_review.ipynb` reads the provided files, lists
    the records found, shows substation snap distances and identifies missing
    power-station information. It does not build a model.
-2. `01-build-network/00_build_network.ipynb` displays the routes and snapped
-   substations, estimates how demand is shared, lists missing model inputs and
-   calls `build_network(source=...)` to write a saved PyPSA network.
+2. `01-build-network/00_build_network.ipynb` builds or loads one selected
+   network, validates its NetCDF/GeoParquet parity and saves a static PNG plus
+   an interactive HTML map.
 3. `02-interruption-analysis/00_interruption_analysis.ipynb` loads a saved
-   `networks/<source>.nc` file and runs baseline/outage cases without
+   `networks/<source>/<source>.nc` file and runs baseline/outage cases without
    rebuilding source-specific network inputs.
 
 The line geometry does not provide an engineering circuit register, but it does
@@ -468,17 +500,19 @@ data/1-processed/energy/provided/
 ### Priority 4a: inferred distribution-network experiment
 
 - `prepare-inferred-distribution --enable-inferred-distribution` builds a
-  labelled topology-only graph from GridFinder and OSM distribution lines.
-- `build-network inferred` now converts that graph style into a fixed-capacity
-  PyPSA network. The current local generated `inferred.nc` uses
-  provisional one-snapshot peak demand and contains no reviewed physical
-  generators, so smoke-test optimisation sheds all demand by design.
+  labelled topology-only graph from precomputed and OSM distribution lines.
+- The two named inferred builders use VIIRS nightlight targets to filter a
+  dense, cyclic OSM road subnetwork rather than publishing a sparse connector
+  tree. `inferred-data` also retains the reviewed CEB backbone and carries
+  complete reviewed generator rows; `inferred-osm` keeps OSM generator sites
+  as capacity-free topology terminals. Neither product attaches demand.
 - The standalone graph command writes nodes and edges under
   `data/1-processed/energy/inferred_distribution/`; the saved-network builder
-  writes its graph tables beside the saved network network under
-  `data/1-processed/energy/networks/inferred_distribution/`.
-- Stage A is connectivity only: remove failed substations or feeder edges and
-  count proxy demand disconnected from every reviewed substation root.
+  packages its graph tables under
+  `data/1-processed/energy/networks/<result>/inferred_distribution/` and its
+  spatial bundle under `<result>/geoparquet/`.
+- Stage A is connectivity only: remove failed power terminals or feeder edges
+  and count proxy demand disconnected from every remaining power root.
 - Stage B remains future work: distribution power flow needs transformer-table
   support, separate voltage-level buses and named sensitivity sets for feeder
   capacity and impedance.

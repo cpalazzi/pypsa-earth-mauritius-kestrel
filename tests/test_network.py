@@ -60,6 +60,23 @@ def test_build_topology_network_has_no_demand_components():
     assert "load_shedding" not in network.generators.carrier.unique()
 
 
+def test_build_topology_network_preserves_review_provenance():
+    buses, lines, generators, _demand, _service_weights = _network_inputs()
+    buses["name"] = ["Alpha", "Beta"]
+    buses["kind"] = "substation"
+    lines["source_route_part_id"] = "ROUTE_001_PART_001"
+    lines["circuit_id"] = "ROUTE_001_PART_001"
+    lines["rating_basis"] = "non_binding_topology_proxy"
+
+    network = build_topology_network(buses, lines, generators)
+
+    assert network.buses.loc["A", "name"] == "Alpha"
+    assert network.buses["kind"].eq("substation").all()
+    assert network.lines.loc["AB", "source_route_part_id"] == "ROUTE_001_PART_001"
+    assert network.lines.loc["AB", "circuit_id"] == "ROUTE_001_PART_001"
+    assert network.lines.loc["AB", "rating_basis"] == "non_binding_topology_proxy"
+
+
 def test_build_topology_network_explains_legacy_capacity_column():
     buses, lines, generators, _demand, _service_weights = _network_inputs()
     generators = generators.rename(columns={"output_capacity_mw": "capacity_mw"})
