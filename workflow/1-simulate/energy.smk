@@ -6,14 +6,14 @@ rule build_base_network:
         routes=f"{PROCESSED_ENERGY}/transmission_routes.parquet",
         generators=f"{PROCESSED_ENERGY}/generators.csv",
     output:
-        network=f"{NETWORKS_ENERGY}/base/base.nc",
-        metadata=f"{NETWORKS_ENERGY}/base/base_metadata.json",
-        spatial_nodes=f"{NETWORKS_ENERGY}/base/geoparquet/base-nodes.geoparquet",
-        spatial_edges=f"{NETWORKS_ENERGY}/base/geoparquet/base-edges.geoparquet",
-        spatial_manifest=f"{NETWORKS_ENERGY}/base/geoparquet/base-spatial-manifest.json",
-        generators=f"{NETWORKS_ENERGY}/base/generators.csv",
-        lines=f"{NETWORKS_ENERGY}/base/lines.csv",
-        validation=f"{NETWORKS_ENERGY}/base/validation.json",
+        network=f"{NETWORKS_ENERGY}/base-mauritius/base-mauritius.nc",
+        metadata=f"{NETWORKS_ENERGY}/base-mauritius/base-mauritius_metadata.json",
+        spatial_nodes=f"{NETWORKS_ENERGY}/base-mauritius/geoparquet/base-mauritius-nodes.geoparquet",
+        spatial_edges=f"{NETWORKS_ENERGY}/base-mauritius/geoparquet/base-mauritius-edges.geoparquet",
+        spatial_manifest=f"{NETWORKS_ENERGY}/base-mauritius/geoparquet/base-mauritius-spatial-manifest.json",
+        generators=f"{NETWORKS_ENERGY}/base-mauritius/generators.csv",
+        lines=f"{NETWORKS_ENERGY}/base-mauritius/lines.csv",
+        validation=f"{NETWORKS_ENERGY}/base-mauritius/validation.json",
     params:
         input_dir=PROCESSED_ENERGY,
         output_dir=NETWORKS_ENERGY,
@@ -28,6 +28,7 @@ rule build_base_network:
     shell:
         """
         .venv/bin/python -m mu_star_energy.cli build-network base \
+          --output-name base-mauritius \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
           --export-root {params.export_root} \
@@ -226,7 +227,7 @@ rule build_inferred_data_network:
 
 rule run_energy_baseline:
     input:
-        network=f"{NETWORKS_ENERGY}/base/base.nc",
+        network=f"{NETWORKS_ENERGY}/base-mauritius/base-mauritius.nc",
         demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
         service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
     output:
@@ -252,7 +253,7 @@ rule run_energy_baseline:
 
 rule run_energy_outage:
     input:
-        network=f"{NETWORKS_ENERGY}/base/base.nc",
+        network=f"{NETWORKS_ENERGY}/base-mauritius/base-mauritius.nc",
         demand=f"{PROCESSED_ENERGY}/demand_profile.csv",
         service_weights=f"{PROCESSED_ENERGY}/service_weights.csv",
         disruptions=f"{PROCESSED_ENERGY}/disruptions.csv",

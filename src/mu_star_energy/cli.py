@@ -141,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     build = subparsers.add_parser("build-network")
     build.add_argument(
         "source",
-        choices=["base", "inferred", "inferred-osm", "inferred-data"],
+        choices=["base", "inferred-osm", "inferred-data"],
     )
     build.add_argument(
         "--region",
@@ -278,9 +278,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     network_selector.add_argument(
         "--network-source",
-        choices=["base", "inferred"],
         default=None,
-        help="Load data/2-out/energy/networks/<source>.nc.",
+        help=(
+            "Load data/2-out/energy/networks/<name>/<name>.nc by result name "
+            "(e.g. base-mauritius or inferred-data-mauritius-rodrigues)."
+        ),
     )
     run.add_argument(
         "--disruptions",

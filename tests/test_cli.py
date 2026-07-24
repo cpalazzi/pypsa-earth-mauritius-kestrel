@@ -11,9 +11,9 @@ def test_run_interruptions_network_selector_is_unambiguous():
             [
                 "run-interruptions",
                 "--network",
-                "data/1-processed/energy/networks/base/base.nc",
+                "data/2-out/energy/networks/base-mauritius/base-mauritius.nc",
                 "--network-source",
-                "base",
+                "base-mauritius",
             ]
         )
 
@@ -24,9 +24,9 @@ def test_run_interruptions_network_selector_is_unambiguous():
 def test_build_network_accepts_inferred_region_selector():
     parser = build_parser()
 
-    args = parser.parse_args(["build-network", "inferred", "--region", "rodrigues"])
+    args = parser.parse_args(["build-network", "inferred-osm", "--region", "rodrigues"])
 
-    assert args.source == "inferred"
+    assert args.source == "inferred-osm"
     assert args.region == "rodrigues"
     assert args.network_type == "all"
     assert args.max_anchor_distance_m == 1000.0
@@ -54,7 +54,7 @@ def test_build_network_region_is_open_ended():
     args = parser.parse_args(
         [
             "build-network",
-            "inferred",
+            "inferred-osm",
             "--region",
             "Rodrigues, Mauritius",
             "--allow-download",

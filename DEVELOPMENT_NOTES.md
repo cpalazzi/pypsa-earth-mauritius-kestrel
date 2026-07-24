@@ -80,7 +80,7 @@ Standalone run path:
 3. review generated `generators.csv`, line-length and generation-capacity
    coverage validation, and the demand inputs under
    `data/1-processed/energy/provided`;
-4. build and save `networks/base/base.nc`, then attach demand to that network;
+4. build and save `networks/base-mauritius/base-mauritius.nc`, then attach demand to that network;
 5. call `EnergyModel().simulate(network, disruptions)`.
 
 ## Module map

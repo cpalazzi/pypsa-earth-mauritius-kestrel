@@ -65,12 +65,12 @@ def test_build_base_network_exports_network_files(tmp_path):
 
     metadata = json.loads(outputs.metadata.read_text())
     assert outputs.network.is_file()
-    assert outputs.network == output_dir / "base" / "base.nc"
-    assert outputs.metadata.parent == output_dir / "base"
-    assert outputs.spatial_nodes.parent == output_dir / "base" / "geoparquet"
-    assert outputs.spatial_nodes.name == "base-nodes.geoparquet"
-    assert outputs.spatial_edges.name == "base-edges.geoparquet"
-    assert outputs.spatial_manifest.name == "base-spatial-manifest.json"
+    assert outputs.network == output_dir / "base-mauritius" / "base-mauritius.nc"
+    assert outputs.metadata.parent == output_dir / "base-mauritius"
+    assert outputs.spatial_nodes.parent == output_dir / "base-mauritius" / "geoparquet"
+    assert outputs.spatial_nodes.name == "base-mauritius-nodes.geoparquet"
+    assert outputs.spatial_edges.name == "base-mauritius-edges.geoparquet"
+    assert outputs.spatial_manifest.name == "base-mauritius-spatial-manifest.json"
     assert metadata["source"] == "base"
     assert metadata["methodology"] == "ceb-routed-topology-v3"
     assert metadata["line_geometry"] == "routed_wkt"
@@ -88,9 +88,9 @@ def test_build_base_network_exports_network_files(tmp_path):
     assert metadata["cycle_rank"] == 0
     assert metadata["meaningful_cycle_count"] == 0
     assert metadata["ceb_topology_validation"]["status"] == "not_applicable"
-    assert outputs.generators == export_root / "base" / "generators.csv"
-    assert outputs.lines == export_root / "base" / "lines.csv"
-    assert outputs.validation == export_root / "base" / "validation.json"
+    assert outputs.generators == export_root / "base-mauritius" / "generators.csv"
+    assert outputs.lines == export_root / "base-mauritius" / "lines.csv"
+    assert outputs.validation == export_root / "base-mauritius" / "validation.json"
     assert pd.read_csv(outputs.generators).loc[0, "output_capacity_mw"] == 100.0
     validation = json.loads(outputs.validation.read_text())
     assert validation["status"] == "valid_with_warnings"
@@ -127,7 +127,7 @@ def test_build_base_network_requires_prepared_inputs(tmp_path):
 def test_build_inferred_without_region_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="requires a region"):
         build_network(
-            "inferred",
+            "inferred-osm",
             input_dir=tmp_path / "inputs",
             output_dir=tmp_path / "networks",
         )
@@ -175,7 +175,7 @@ def test_build_inferred_network_for_region_uses_osm_fixtures(tmp_path, monkeypat
 
     output_dir = tmp_path / "processed" / "energy" / "networks"
     outputs = build_network(
-        "inferred",
+        "inferred-osm",
         region="rodrigues",
         input_dir=tmp_path / "inputs",
         output_dir=output_dir,
@@ -275,7 +275,7 @@ def test_build_inferred_uses_nightlight_targets_and_cached_roads_without_power(
     )
 
     outputs = build_network(
-        "inferred",
+        "inferred-osm",
         region="rodrigues",
         input_dir=tmp_path / "inputs",
         output_dir=tmp_path / "networks",
@@ -327,7 +327,7 @@ def test_build_inferred_uses_osm_substations_and_generators_as_roots(
     )
 
     outputs = build_network(
-        "inferred",
+        "inferred-osm",
         region="mauritius",
         input_dir=tmp_path / "inputs",
         output_dir=tmp_path / "networks",

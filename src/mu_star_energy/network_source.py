@@ -1165,9 +1165,7 @@ def build_network(
     power terminals. ``source="inferred-data"`` instead uses the reviewed
     input substations and generator sites. Both inferred products use VIIRS
     nightlight targets to retain a dense, cyclic OSM road subnetwork;
-    the reviewed-data product also preserves the CEB backbone.
-    ``source="inferred"`` remains an alias for ``inferred-osm``.
-    Existing
+    the reviewed-data product also preserves the CEB backbone. Existing
     outputs are not overwritten unless ``overwrite`` is set, and OSM data is
     only downloaded when ``allow_download`` is True. Every build also writes
     checksum-linked node and edge GeoParquet views in a ``geoparquet``
@@ -1178,8 +1176,6 @@ def build_network(
     a source-named subdirectory.
     """
     source = source.lower()
-    if source == "inferred":
-        source = "inferred-osm"
     valid_sources = {"base", "inferred-osm", "inferred-data"}
     if source not in valid_sources:
         raise ValueError(
@@ -1200,7 +1196,7 @@ def build_network(
     elif source != "base":
         output_stem = f"{source}-{osm.region_slug(region)}"
     else:
-        output_stem = "base"
+        output_stem = "base-mauritius"
     result_dir = output_dir / output_stem
     network_path = result_dir / f"{output_stem}.nc"
     metadata_path = result_dir / f"{output_stem}_metadata.json"
