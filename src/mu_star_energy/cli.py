@@ -198,10 +198,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build.add_argument(
         "--network-type",
-        default="all",
+        default="drive",
         help=(
-            "OSM detail retained around VIIRS nightlight targets. Use "
-            "'all' (default)."
+            "osmnx road detail fetched around VIIRS nightlight targets. "
+            "'drive' (default) keeps the drivable network and drops footpaths, "
+            "tracks and hiking trails; 'all' keeps every mapped way."
         ),
     )
     build.add_argument(

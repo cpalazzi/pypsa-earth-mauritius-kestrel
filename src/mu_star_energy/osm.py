@@ -87,10 +87,26 @@ def osm_power_path(region: str) -> Path:
 
 def _empty_roads(region: str) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
-        {"source": [], "region": [], "geometry": []},
+        {"source": [], "region": [], "highway": [], "geometry": []},
         geometry="geometry",
         crs=GEOGRAPHIC_CRS,
     )
+
+
+def _primary_highway_class(value: object) -> str | None:
+    """Normalise an OSM ``highway`` tag to a single lowercase class string.
+
+    osmnx returns ``highway`` as a plain string for most ways, but simplified
+    edges that merge several ways carry a list of values. Collapse either form
+    to one representative class (the first entry) so the column stays filterable
+    and Parquet-friendly. Missing tags become ``None``.
+    """
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    text = str(value).strip().lower()
+    return text or None
 
 
 def _empty_power_features() -> gpd.GeoDataFrame:
@@ -112,11 +128,16 @@ def fetch_osm_roads(
 
     ``region`` is any OSM/Nominatim query (e.g. "Rodrigues, Mauritius"); the
     REGIONS shortcuts expand to full queries. ``network_type`` sets the road
-    detail -- "drive" for the road network, "all" for every mapped way. The
-    cached file is reused unless ``overwrite`` is set. When the data is not
-    cached and ``allow_download`` is False, this raises ``OSMDownloadRequired``
-    instead of contacting OSM, so a run never downloads without being asked.
-    Regions with no mapped roads (e.g. St Brandon) cache an empty layer.
+    detail and is passed straight to osmnx: "drive" keeps the drivable road
+    network (trunk/primary/secondary/tertiary/unclassified/residential and their
+    links), while "all" also pulls in footpaths, tracks, steps and cycleways --
+    which the distribution-line proxy should not follow. Each cached feature
+    keeps its OSM ``highway`` class so the classification stays inspectable and
+    filterable downstream. The cached file is reused unless ``overwrite`` is set.
+    When the data is not cached and ``allow_download`` is False, this raises
+    ``OSMDownloadRequired`` instead of contacting OSM, so a run never downloads
+    without being asked. Regions with no mapped roads (e.g. St Brandon) cache an
+    empty layer.
     """
     region = _require_region(region)
     slug = region_slug(region)
@@ -163,10 +184,17 @@ def fetch_osm_roads(
 
     try:
         graph = ox.graph_from_place(region_query(region), network_type=network_type)
-        roads = ox.graph_to_gdfs(graph, nodes=False).reset_index()[["geometry"]]
+        edges = ox.graph_to_gdfs(graph, nodes=False).reset_index()
+        highway = (
+            edges["highway"].map(_primary_highway_class)
+            if "highway" in edges
+            else None
+        )
+        roads = edges[["geometry"]].copy()
         roads["source"] = "osm_roads"
         roads["region"] = slug
-        roads = roads[["source", "region", "geometry"]]
+        roads["highway"] = highway
+        roads = roads[["source", "region", "highway", "geometry"]]
     except InsufficientResponseError:
         roads = _empty_roads(region)
 

@@ -74,6 +74,43 @@ def test_fetch_osm_power_features_handles_osmnx_multiindex(monkeypatch, tmp_path
     assert power.crs == "EPSG:4326"
 
 
+def test_fetch_osm_roads_preserves_highway_class(monkeypatch, tmp_path):
+    ox = pytest.importorskip("osmnx")
+    monkeypatch.setenv("MU_STAR_DATA_ROOT", str(tmp_path))
+
+    edges = gpd.GeoDataFrame(
+        {
+            # osmnx yields a plain string for most ways and a list for merged
+            # edges; missing tags come through as None.
+            "highway": ["residential", ["tertiary", "service"], "Primary", None],
+            "geometry": [
+                LineString([(57.50, -20.20), (57.501, -20.20)]),
+                LineString([(57.51, -20.21), (57.511, -20.21)]),
+                LineString([(57.52, -20.22), (57.521, -20.22)]),
+                LineString([(57.53, -20.23), (57.531, -20.23)]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+
+    monkeypatch.setattr(ox, "graph_from_place", lambda query, network_type: object())
+    monkeypatch.setattr(ox, "graph_to_gdfs", lambda graph, nodes: edges.copy())
+
+    output = fetch_osm_roads(
+        "mauritius", network_type="drive", overwrite=True, allow_download=True
+    )
+    roads = gpd.read_parquet(output.path)
+
+    assert "highway" in roads.columns
+    assert list(roads.columns) == ["source", "region", "highway", "geometry"]
+    highway = list(roads["highway"])
+    assert highway[:3] == ["residential", "tertiary", "primary"]
+    assert pd.isna(highway[3])
+    assert set(roads["source"]) == {"osm_roads"}
+    assert set(roads["region"]) == {"mauritius"}
+    assert output.path.name == "roads.parquet"
+
+
 def test_composite_region_combines_cached_roads_and_power(monkeypatch, tmp_path):
     monkeypatch.setenv("MU_STAR_DATA_ROOT", str(tmp_path))
     for region, longitude in (("mauritius", 57.5), ("rodrigues", 63.4)):

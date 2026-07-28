@@ -687,7 +687,7 @@ def _osm_road_envelope_validation(
     reference_line_length_km: float,
     tolerance_fraction: float,
 ) -> dict[str, object]:
-    """Compare the de-duplicated all-ways road envelope with CEB circuit-km."""
+    """Compare the de-duplicated road envelope with CEB circuit-km."""
     graph = build_inferred_distribution_graph(
         _empty_power_assets(),
         osm_distribution_lines=roads,
@@ -813,6 +813,29 @@ def _reviewed_generators_for_inferred(
     return prepared
 
 
+def _highway_class_breakdown(roads: gpd.GeoDataFrame | None) -> dict[str, int]:
+    """Count OSM road features by their retained ``highway`` class.
+
+    Lets a build report verify that footpaths and tracks are excluded. Caches
+    written before the ``highway`` column was retained report every feature as
+    ``"unlabelled"`` so the totals still add up.
+    """
+    if roads is None or len(roads) == 0:
+        return {}
+    if "highway" not in roads:
+        return {"unlabelled": int(len(roads))}
+    classes = (
+        roads["highway"]
+        .astype("string")
+        .str.strip()
+        .str.lower()
+        .replace("", pd.NA)
+        .fillna("unlabelled")
+    )
+    counts = classes.value_counts()
+    return {str(name): int(count) for name, count in counts.items()}
+
+
 def _build_inferred_network(
     *,
     source: str,
@@ -845,7 +868,7 @@ def _build_inferred_network(
     roads_cache_path = _fetch_result_path(roads_result)
     osm_road_envelope = _coerce_vector_fetch_result(roads_result)
     if osm_road_envelope is None:
-        raise FileNotFoundError("The OSM all-ways road envelope is unavailable")
+        raise FileNotFoundError("The OSM road envelope is unavailable")
 
     power_cache_path = None
     power_feature_count = 0
@@ -934,6 +957,9 @@ def _build_inferred_network(
     )
     supported_road_metadata["nightlight_target_count"] = len(nightlight_target_points)
     supported_road_metadata["power_asset_support_count"] = len(power_assets)
+    supported_road_metadata["highway_classes"] = _highway_class_breakdown(
+        supported_roads
+    )
 
     reviewed_backbone: gpd.GeoDataFrame | None = None
     reviewed_backbone_edges = 0
@@ -1049,6 +1075,9 @@ def _build_inferred_network(
             "region": region,
             "regions": list(osm.region_members(region)),
             "road_envelope_network_type": network_type,
+            "road_envelope_highway_classes": _highway_class_breakdown(
+                osm_road_envelope
+            ),
             "has_demand": False,
             "snapshots": 0,
             "buses": len(network.buses),
@@ -1139,7 +1168,7 @@ def build_network(
     output_name: str | None = None,
     overwrite: bool = False,
     allow_download: bool = False,
-    network_type: str = "all",
+    network_type: str = "drive",
     nightlight_aoi_path: Path | None = None,
     nightlights_path: Path | None = None,
     nightlight_targets: gpd.GeoDataFrame | str | Path | None = None,

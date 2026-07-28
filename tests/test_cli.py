@@ -28,7 +28,7 @@ def test_build_network_accepts_inferred_region_selector():
 
     assert args.source == "inferred-osm"
     assert args.region == "rodrigues"
-    assert args.network_type == "all"
+    assert args.network_type == "drive"
     assert args.max_anchor_distance_m == 1000.0
     assert args.nightlight_aoi is None
     assert args.nightlights is None
