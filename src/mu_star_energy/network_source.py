@@ -715,17 +715,124 @@ def _osm_road_envelope_validation(
     }
 
 
+def _road_component_count(roads: gpd.GeoDataFrame) -> int:
+    """Count endpoint-connected road components per island.
+
+    The final network graph joins lines only where they share an endpoint, so
+    this mirrors the connectivity the build actually produces.
+    """
+    total = 0
+    for _, block in roads.groupby("region", dropna=False):
+        graph = nx.Graph()
+        for line in block.geometry:
+            coords = list(line.coords)
+            graph.add_edge(
+                tuple(round(value, 6) for value in coords[0]),
+                tuple(round(value, 6) for value in coords[-1]),
+            )
+        total += nx.number_connected_components(graph)
+    return total
+
+
+def _road_endpoints(line: LineString) -> tuple[tuple[float, float], tuple[float, float]]:
+    coords = list(line.coords)
+    return (
+        tuple(round(value, 6) for value in coords[0]),
+        tuple(round(value, 6) for value in coords[-1]),
+    )
+
+
+def _reconnect_supported_roads(
+    supported: gpd.GeoDataFrame,
+    full_envelope: gpd.GeoDataFrame,
+    metric_crs: object,
+) -> gpd.GeoDataFrame:
+    """Reconnect stranded supported components along real roads.
+
+    The nightlight support filter can strand a lit cluster (e.g. Le Morne) by
+    dropping an unlit stretch of connecting road. The full road envelope is
+    connected, so for each stranded component restore the shortest real-road path
+    (from the full envelope, weighted by length) back to its island's main
+    network. Restored roads are real segments tagged ``source="road_link"``.
+    """
+    added_rows: list[dict[str, object]] = []
+    for region_name, block in supported.groupby("region", dropna=False):
+        support_graph = nx.Graph()
+        for line in block.geometry:
+            start, end = _road_endpoints(line)
+            support_graph.add_edge(start, end)
+        components = sorted(
+            nx.connected_components(support_graph), key=len, reverse=True
+        )
+        if len(components) <= 1:
+            continue
+
+        if region_name is None or (isinstance(region_name, float) and pd.isna(region_name)):
+            full_block = full_envelope[full_envelope["region"].isna()]
+        else:
+            full_block = full_envelope[full_envelope["region"] == region_name]
+        full_lengths_m = full_block.to_crs(metric_crs).geometry.length.to_numpy()
+        full_graph = nx.Graph()
+        for line, length_m in zip(full_block.geometry, full_lengths_m):
+            start, end = _road_endpoints(line)
+            if start == end:
+                continue
+            if not full_graph.has_edge(start, end):
+                full_graph.add_edge(
+                    start, end, length=float(length_m), geometry=line
+                )
+
+        sources = {node for node in components[0] if node in full_graph}
+        if not sources:
+            continue
+        distances = nx.multi_source_dijkstra_path_length(
+            full_graph, sources, weight="length"
+        )
+        restored_edges = {frozenset(edge) for edge in support_graph.edges}
+        for component in components[1:]:
+            reachable = [node for node in component if node in distances]
+            if not reachable:
+                continue
+            nearest = min(reachable, key=lambda node: distances[node])
+            _, path = nx.multi_source_dijkstra(
+                full_graph, sources, target=nearest, weight="length"
+            )
+            for start, end in zip(path[:-1], path[1:]):
+                edge_key = frozenset((start, end))
+                if edge_key in restored_edges:
+                    continue
+                restored_edges.add(edge_key)
+                edge_data = full_graph.get_edge_data(start, end)
+                added_rows.append(
+                    {
+                        "region": region_name,
+                        "source": "road_link",
+                        "geometry": edge_data["geometry"],
+                        "_link_km": edge_data["length"] / 1000,
+                    }
+                )
+    if not added_rows:
+        return gpd.GeoDataFrame(
+            {"region": [], "source": [], "geometry": [], "_link_km": []},
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+    return gpd.GeoDataFrame(added_rows, geometry="geometry", crs="EPSG:4326")
+
+
 def _nightlight_supported_roads(
     roads: gpd.GeoDataFrame,
     targets: gpd.GeoDataFrame,
     *,
     support_distance_m: float,
 ) -> tuple[gpd.GeoDataFrame, dict[str, object]]:
-    """Retain the dense road subnetwork supported by nightlight targets.
+    """Retain the road subnetwork supported by nightlight targets.
 
     Roads within the configured distance of a VIIRS-derived target are kept.
-    Only the largest endpoint-connected road component per island is retained,
-    which removes isolated fragments while preserving local road cycles.
+    Every supported road is retained, and stranded components (lit clusters the
+    support filter cut off, e.g. Le Morne) are reconnected to the main network
+    along the shortest real-road path from the full envelope, so the result is a
+    connected, road-following network.
     """
     if support_distance_m < 0:
         raise ValueError("nightlight_support_distance_m must be non-negative")
@@ -747,44 +854,32 @@ def _nightlight_supported_roads(
     support_area = targets.to_crs(metric_crs).geometry.buffer(
         support_distance_m
     ).union_all()
+    full_envelope = prepared
     prepared = prepared.loc[metric_roads.geometry.intersects(support_area)].copy()
-    metric_roads = metric_roads.loc[prepared.index]
     if prepared.empty:
         raise ValueError("No OSM roads fall within the nightlight support area")
 
-    prepared["_selection_id"] = range(len(prepared))
-    prepared["_start"] = prepared.geometry.map(
-        lambda line: tuple(round(float(value), 6) for value in line.coords[0])
-    )
-    prepared["_end"] = prepared.geometry.map(
-        lambda line: tuple(round(float(value), 6) for value in line.coords[-1])
-    )
-    retained_ids: set[int] = set()
-    component_count = 0
-    for _, region_roads in prepared.groupby("region", dropna=False):
-        graph = nx.Graph()
-        for start, end in region_roads[["_start", "_end"]].itertuples(
-            index=False,
-            name=None,
-        ):
-            graph.add_edge(start, end)
-        components = list(nx.connected_components(graph))
-        component_count += len(components)
-        if not components:
-            continue
-        main_component = max(components, key=len)
-        retained_ids.update(
-            int(selection_id)
-            for selection_id, start, end in region_roads[
-                ["_selection_id", "_start", "_end"]
-            ].itertuples(index=False, name=None)
-            if start in main_component and end in main_component
+    selected = prepared.copy()
+
+    # The nightlight support filter can drop an unlit stretch of connecting road
+    # and strand a lit cluster (e.g. Le Morne) as its own component. Reconnect
+    # each stranded component to its island's main network along the shortest
+    # real-road path from the full envelope, so the network stays road-following.
+    links = _reconnect_supported_roads(selected, full_envelope, metric_crs)
+    if not links.empty:
+        selected = gpd.GeoDataFrame(
+            pd.concat(
+                [selected, links[["region", "source", "geometry"]]],
+                ignore_index=True,
+            ),
+            geometry="geometry",
+            crs="EPSG:4326",
         )
-    selected = prepared[prepared["_selection_id"].isin(retained_ids)].copy()
-    selected_metric = metric_roads.loc[selected.index]
-    selected_length_km = float(selected_metric.geometry.length.sum() / 1000)
-    all_metric = roads.to_crs(metric_crs)
-    all_length_km = float(all_metric.geometry.length.sum() / 1000)
+
+    selected_length_km = float(
+        selected.to_crs(metric_crs).geometry.length.sum() / 1000
+    )
+    all_length_km = float(roads.to_crs(metric_crs).geometry.length.sum() / 1000)
     metadata = {
         "support_distance_m": float(support_distance_m),
         "support_point_count": len(targets),
@@ -796,13 +891,14 @@ def _nightlight_supported_roads(
         "supported_road_length_fraction": (
             selected_length_km / all_length_km if all_length_km else 0.0
         ),
-        "candidate_component_count": component_count,
-        "retained_component_count": int(selected["region"].nunique(dropna=False)),
+        "candidate_component_count": _road_component_count(prepared),
+        "retained_component_count": _road_component_count(selected),
+        "reconnection_road_segments": int(len(links)),
+        "reconnection_length_km": (
+            float(links["_link_km"].sum()) if not links.empty else 0.0
+        ),
     }
-    return (
-        selected.drop(columns=["_selection_id", "_start", "_end"]),
-        metadata,
-    )
+    return selected, metadata
 
 
 def _reviewed_generators_for_inferred(
