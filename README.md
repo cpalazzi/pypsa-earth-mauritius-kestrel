@@ -7,13 +7,34 @@ or taken out of service.
 
 This is an operational model of a fixed set of assets.
 
+## Project status — where development continues
+
+This repository is the working **prototype** for the `mu-star` energy component.
+It is where the Mauritius energy model was first built and validated.
+
+- **Energy network build** — the reviewed `base-mauritius` topology and the two
+  nightlight-supported inferred proxies (`inferred-osm`, `inferred-data`) — has
+  been ported into [`nismod/mu-star`](https://github.com/nismod/mu-star) as its
+  `src/energy` package. **Ongoing development of the network build now happens
+  in mu-star**, not here.
+- **Interruption analysis** (`EnergyModel().simulate(network, disruptions)`,
+  outage and damage cases) was intentionally left out of the mu-star migration.
+  It is not available there yet, so this repo stays the reference for it until
+  it is ported.
+- **PyPSA-Earth reference** (renewable profiles, GEGIS demand, capacity-expansion
+  comparisons) stays here; it is not part of mu-star.
+
+Use this repo to run and study the full interruption pipeline and the PyPSA-Earth
+comparisons, and as the source of truth for the migrated network build. Use
+mu-star for continued energy network-build development.
+
 ## Two models in this repo
 
 Two separate models sit side by side:
 the development workflow for the mu-star energy component, and PyPSA-Earth for reference.
 
-**Interruption model (primary)** — the mu-star `energy` component: code in
-`src/mu_star_energy/`, notebooks in
+**Interruption model (primary)** — the prototype for the mu-star `energy`
+component: code in `src/mu_star_energy/`, notebooks in
 `notebooks/00-data-review/`, `01-build-network/` and `02-interruption-analysis/`. Runs a
 provided system and tests asset outages:
 
