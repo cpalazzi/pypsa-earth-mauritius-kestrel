@@ -14,7 +14,7 @@ energy:
   inferred_network:
     region: mauritius-rodrigues
     # VIIRS nightlight targets filter the drivable OSM road network; the
-    # resulting inferred product keeps road cycles and the reviewed-data variant
+    # resulting inferred product keeps road cycles and the provided-data variant
     # also preserves the main CEB backbone. "drive" excludes footpaths, tracks
     # and hiking trails (use "all" only to inspect every mapped way).
     network_type: drive

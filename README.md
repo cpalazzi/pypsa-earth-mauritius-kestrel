@@ -12,8 +12,8 @@ This is an operational model of a fixed set of assets.
 This repository is the working **prototype** for the `mu-star` energy component.
 It is where the Mauritius energy model was first built and validated.
 
-- **Energy network build** — the reviewed `base-mauritius` topology and the two
-  nightlight-supported inferred proxies (`inferred-osm`, `inferred-data`) — has
+- **Energy network build** — the provided `base-mauritius` topology and the two
+  nightlight-supported inferred proxies (`inferred-osm`, `inferred-provided`) — has
   been ported into [`nismod/mu-star`](https://github.com/nismod/mu-star) as its
   `src/energy` package. **Ongoing development of the network build now happens
   in mu-star**, not here.
@@ -156,9 +156,9 @@ reuses the same `.venv`.
      --output-name inferred-osm-mauritius-rodrigues \
      --overwrite
 
-   .venv/bin/python -m mu_star_energy.cli build-network inferred-data \
+   .venv/bin/python -m mu_star_energy.cli build-network inferred-provided \
      --region mauritius-rodrigues \
-     --output-name inferred-data-mauritius-rodrigues \
+     --output-name inferred-provided-mauritius-rodrigues \
      --overwrite
    ```
 
@@ -183,10 +183,10 @@ reuses the same `.venv`.
    support distance.
    `inferred-osm` uses OSM substations, plants and generators as known power
    terminals. OSM generator sites remain topology terminals rather than PyPSA
-   generators because reviewed capacity and operating attributes are absent.
-   `inferred-data` replaces those terminals with the reviewed input substations
-   and generator sites; complete reviewed generator records are also carried
-   into PyPSA, and its reviewed CEB backbone is retained explicitly. A member
+   generators because provided capacity and operating attributes are absent.
+   `inferred-provided` replaces those terminals with the provided input substations
+   and generator sites; complete provided generator records are also carried
+   into PyPSA, and its provided CEB backbone is retained explicitly. A member
    island without a known terminal receives a labelled provisional root. The
    inferred road-plus-backbone length itself is checked against CEB's reported
    10,492.2 circuit-km total; the complete unfiltered road envelope remains an
@@ -259,8 +259,8 @@ of those targets (and of known power assets) is retained, keeping a connected
 Mauritius component and a connected Rodrigues component.
 
 `inferred-osm` uses OSM `power=substation`, `power=plant` and
-`power=generator` features as power terminals. `inferred-data` uses only the
-reviewed input substations and generator coordinates. Road lengths and anchor
+`power=generator` features as power terminals. `inferred-provided` uses only the
+provided input substations and generator coordinates. Road lengths and anchor
 distances are measured geodesically on WGS84. The islands retain separate
 region provenance and are never joined by a synthetic inter-island line.
 
@@ -284,7 +284,7 @@ design class to every exported circuit.
 
 Power terminals are anchored to the nearest inferred route endpoint within
 1,000 m. Unanchored terminals remain visible for review. The inferred products
-remain separate from the reviewed CEB-derived `base` topology.
+remain separate from the provided CEB-derived `base` topology.
 
 ## Guardrails
 

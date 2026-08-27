@@ -141,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     build = subparsers.add_parser("build-network")
     build.add_argument(
         "source",
-        choices=["base", "inferred-osm", "inferred-data"],
+        choices=["base", "inferred-osm", "inferred-provided"],
     )
     build.add_argument(
         "--region",
@@ -158,8 +158,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=processed_energy_dir() / "provided",
         help=(
-            "Folder containing reviewed/intermediate inputs "
-            "(used by base and inferred-data)."
+            "Folder containing provided/intermediate inputs "
+            "(used by base and inferred-provided)."
         ),
     )
     build.add_argument(
@@ -183,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Result-directory and file stem "
             "(default: 'base', 'inferred-osm-<region>', or "
-            "'inferred-data-<region>')."
+            "'inferred-provided-<region>')."
         ),
     )
     build.add_argument(
@@ -282,7 +282,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Load data/2-out/energy/networks/<name>/<name>.nc by result name "
-            "(e.g. base-mauritius or inferred-data-mauritius-rodrigues)."
+            "(e.g. base-mauritius or inferred-provided-mauritius-rodrigues)."
         ),
     )
     run.add_argument(

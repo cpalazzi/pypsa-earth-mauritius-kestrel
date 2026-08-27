@@ -37,14 +37,14 @@ def test_build_network_accepts_inferred_region_selector():
     assert args.inferred_reference_line_length_km == 10_492.2
 
 
-def test_build_network_accepts_reviewed_data_inferred_source():
+def test_build_network_accepts_provided_data_inferred_source():
     parser = build_parser()
 
     args = parser.parse_args(
-        ["build-network", "inferred-data", "--region", "mauritius-rodrigues"]
+        ["build-network", "inferred-provided", "--region", "mauritius-rodrigues"]
     )
 
-    assert args.source == "inferred-data"
+    assert args.source == "inferred-provided"
     assert args.region == "mauritius-rodrigues"
 
 

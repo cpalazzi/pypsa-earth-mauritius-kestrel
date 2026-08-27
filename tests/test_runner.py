@@ -6,7 +6,7 @@ from mu_star_energy.network_source import build_network
 from mu_star_energy.runner import read_time_series_csv, run_interruption_analysis
 
 
-def _write_reviewed_inputs(input_dir):
+def _write_provided_inputs(input_dir):
     input_dir.mkdir(parents=True)
     buses = gpd.GeoDataFrame(
         {
@@ -73,7 +73,7 @@ def test_run_interruption_analysis_writes_baseline_and_outage_outputs(tmp_path):
     input_dir = tmp_path / "processed" / "energy" / "provided"
     network_dir = tmp_path / "processed" / "energy" / "networks"
     output_dir = tmp_path / "out" / "energy"
-    _write_reviewed_inputs(input_dir)
+    _write_provided_inputs(input_dir)
     network_outputs = build_network("base", input_dir=input_dir, output_dir=network_dir)
 
     outputs = run_interruption_analysis(
@@ -107,7 +107,7 @@ def test_run_interruption_analysis_can_load_saved_network(tmp_path):
     input_dir = tmp_path / "processed" / "energy" / "provided"
     network_dir = tmp_path / "processed" / "energy" / "networks"
     output_dir = tmp_path / "out" / "energy"
-    _write_reviewed_inputs(input_dir)
+    _write_provided_inputs(input_dir)
     network_outputs = build_network("base", input_dir=input_dir, output_dir=network_dir)
 
     outputs = run_interruption_analysis(

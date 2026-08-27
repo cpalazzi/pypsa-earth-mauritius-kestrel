@@ -132,7 +132,7 @@ rule build_inferred_osm_network:
           --line-length-tolerance-fraction {params.line_length_tolerance}
         """
 
-rule build_inferred_data_network:
+rule build_inferred_provided_network:
     input:
         buses=f"{PROCESSED_ENERGY}/snapped_substations.parquet",
         routes=f"{PROCESSED_ENERGY}/transmission_routes.parquet",
@@ -154,47 +154,47 @@ rule build_inferred_data_network:
             f"viirs-{INFERRED_NETWORK_SLUG}-2024.tif"
         ),
     output:
-        network=f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/{INFERRED_DATA_RESULT}.nc",
+        network=f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/{INFERRED_PROVIDED_RESULT}.nc",
         metadata=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/"
-            f"{INFERRED_DATA_RESULT}_metadata.json"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/"
+            f"{INFERRED_PROVIDED_RESULT}_metadata.json"
         ),
         spatial_nodes=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/geoparquet/"
-            f"{INFERRED_DATA_RESULT}-nodes.geoparquet"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/geoparquet/"
+            f"{INFERRED_PROVIDED_RESULT}-nodes.geoparquet"
         ),
         spatial_edges=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/geoparquet/"
-            f"{INFERRED_DATA_RESULT}-edges.geoparquet"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/geoparquet/"
+            f"{INFERRED_PROVIDED_RESULT}-edges.geoparquet"
         ),
         spatial_manifest=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/geoparquet/"
-            f"{INFERRED_DATA_RESULT}-spatial-manifest.json"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/geoparquet/"
+            f"{INFERRED_PROVIDED_RESULT}-spatial-manifest.json"
         ),
         nodes=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/inferred_distribution/"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/inferred_distribution/"
             "inferred_distribution_nodes.csv"
         ),
         edges=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/inferred_distribution/"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/inferred_distribution/"
             "inferred_distribution_edges.csv"
         ),
         service_weights=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/inferred_distribution/"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/inferred_distribution/"
             "service_weights.csv"
         ),
         graph_metadata=(
-            f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/inferred_distribution/"
+            f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/inferred_distribution/"
             "inferred_distribution_metadata.json"
         ),
-        generators=f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/generators.csv",
-        lines=f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/lines.csv",
-        validation=f"{NETWORKS_ENERGY}/{INFERRED_DATA_RESULT}/validation.json",
+        generators=f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/generators.csv",
+        lines=f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/lines.csv",
+        validation=f"{NETWORKS_ENERGY}/{INFERRED_PROVIDED_RESULT}/validation.json",
     params:
         input_dir=PROCESSED_ENERGY,
         output_dir=NETWORKS_ENERGY,
         export_root=NETWORKS_ENERGY,
-        output_name=INFERRED_DATA_RESULT,
+        output_name=INFERRED_PROVIDED_RESULT,
         region=INFERRED_NETWORK_REGION,
         network_type=INFERRED_NETWORK_TYPE,
         max_anchor_distance_m=1000,
@@ -206,7 +206,7 @@ rule build_inferred_data_network:
         nightlight_support_distance_m=INFERRED_NIGHTLIGHT_SUPPORT_DISTANCE_M,
     shell:
         """
-        .venv/bin/python -m mu_star_energy.cli build-network inferred-data \
+        .venv/bin/python -m mu_star_energy.cli build-network inferred-provided \
           --input-dir {params.input_dir} \
           --output-dir {params.output_dir} \
           --export-root {params.export_root} \
