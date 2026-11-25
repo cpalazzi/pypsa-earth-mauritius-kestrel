@@ -38,3 +38,6 @@ data/2-out/**
 
 # osmnx Overpass cache
 cache/
+
+# Personal development notes, kept local
+DEVELOPMENT_NOTES.md
